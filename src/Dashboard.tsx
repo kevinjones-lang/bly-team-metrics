@@ -82,13 +82,14 @@ export default function Dashboard() {
   const [srt, setSrt] = useState<Record<string, string>>({});
   const [pm, setPm] = useState<number>(8);
   const [rcCat, setRcCat] = useState<string>("all");
-  const [view, setView] = useState<string>("team");
+
   const [agent, setAgent] = useState<string>(Object.keys(D.names).sort((a, b) => D.names[a].localeCompare(D.names[b]))[0]);
   const [per, setPer] = useState<Per>("mtd");
-  const [sortBy, setSortBy] = useState<string>("sGci");
+  const sortBy = "sGci";
   const [isaSel, setIsaSel] = useState<string>("team");
-  const [lease, setLease] = useState<string>("in");
   const [lrOn, setLrOn] = useState<string>("on");
+  const lease = lrOn === "on" ? "in" : "out"; // one global leases & referrals switch drives GCI views and ISA
+  const view = tab === "agents" ? "agent" : tab === "isa" ? "isa" : tab === "coaching" ? "coaching" : "team"; // group comes from the tab
   const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev,
     mon: o.mon && { ...o.mon, mon_sisu_units: o.mon.mon_sisu_units_x || o.mon.mon_sisu_units, mon_sisu_gci: o.mon.mon_sisu_gci_x || o.mon.mon_sisu_gci, mon_exp_rev: o.mon.mon_exp_rev_x || o.mon.mon_exp_rev } });
   const LRL = lrOn === "on" ? "incl. leases & referrals" : "excl. leases & referrals";
@@ -96,7 +97,7 @@ export default function Dashboard() {
   const s: any = SG(D.segs[key]);
   const i = PI[per];
   const label = view === "agent" ? D.names[agent] : view === "isa" ? "ISA Team" : view === "coaching" ? "Coaching group" : "Whole team";
-  const members: string[] = view === "isa" || view === "coaching" ? D.groups[view] : view === "agent" ? [agent] : Object.keys(D.names);
+  const members: string[] = view === "isa" || view === "coaching" ? D.groups[view] : Object.keys(D.names);
   const memberNames = members.map((k: string) => D.names[k]).filter(Boolean);
   const nameMatch = (agents: string) => view === "team" || memberNames.some((nm: string) => { const p = nm.toLowerCase().split(" "); const a = agents.toLowerCase(); return a.includes(p[0]) && a.includes(p[p.length - 1]); });
   const agentOpts = Object.keys(D.names).sort((a, b) => D.names[a].localeCompare(D.names[b])).map((k: string) => ({ value: k, label: D.names[k] }));
@@ -104,13 +105,14 @@ export default function Dashboard() {
   const score = useMemo(() => {
     const ks = members.filter((k: string) => D.segs[k]);
     return ks.map((k: string) => ({ k, s: SG(D.segs[k]) })).sort((a: any, b: any) => (b.s[sortBy][i] || 0) - (a.s[sortBy][i] || 0));
-  }, [view, agent, per, sortBy, lrOn]);
+  }, [view, per, lrOn]);
 
-  const byUid = (u: any) => view === "team" || (u.uids as number[]).some((x: number) => members.includes("agent:" + x));
+  const byUid = (u: any) => view === "team" || view === "agent" || (u.uids as number[]).some((x: number) => members.includes("agent:" + x));
   const up30 = (D.segs.team.up30 as any[]).filter(byUid);
   const al = D.alerts;
   const c7 = (al.closing7 as any[]).filter(byUid);
   const stale = (al.stale_pending as any[]).filter(byUid);
+  const sStale = ((al.sisu_stale || []) as any[]).filter(byUid);
   const unc = (al.uncontacted as any[]).filter((u: any) => nameMatch(u.assigned));
   const zero = (al.zero_activity as any[]).filter((u: any) => view === "team" || members.includes("agent:" + u.uid));
   const mon = SG(D.segs[view === "agent" ? "team" : key] || D.segs.team).mon;
@@ -144,13 +146,7 @@ export default function Dashboard() {
   const isaNoFu = (ISA.alerts.no_followup as any[]).filter((r: any) => (isaSel === "team" || r.isa === isaSel) && (lease === "in" || !r.lease));
   const isaUnc = (ISA.alerts.isa_uncontacted as any[]).filter((r: any) => isaSel === "team" || r.isa === ISA.labels[isaSel]);
 
-  const sortCtl = (id: string, cols: string[]) => (
-    <Grid columns={2} plain>
-      <Select label="Sort by" options={[{ value: "-1", label: "Default order" }, ...cols.map((c: string, k: number) => ({ value: String(k), label: c }))]} value={(srt[id] || "-1|desc").split("|")[0]} onChange={(v: string) => setSrt({ ...srt, [id]: `${v}|${(srt[id] || "-1|desc").split("|")[1]}` })} />
-      <Segmented options={[{ value: "desc", label: "High to low" }, { value: "asc", label: "Low to high" }]} value={(srt[id] || "-1|desc").split("|")[1]} onChange={(v: string) => setSrt({ ...srt, [id]: `${(srt[id] || "-1|desc").split("|")[0]}|${v}` })} />
-    </Grid>
-  );
-  const pickTab = (t: string) => { setTab(t); if (t === "coaching") setView("coaching"); if (t === "agents" && view === "coaching") setView("team"); };
+  const pickTab = (t: string) => setTab(t);
   const TABS = [{ value: "team", label: "Team" }, { value: "isa", label: "ISA" }, { value: "coaching", label: "Coaching" }, { value: "agents", label: "Agents" }, { value: "attr", label: "Attribution" }, { value: "pnl", label: "P&L" }, { value: "recon", label: "Reconciliation" }];
 
   const ALLOW: Record<string, string[]> = {
@@ -178,23 +174,22 @@ export default function Dashboard() {
       </div>
       <Segmented options={TABS} value={tab} onChange={pickTab} />
       <Section heading="Filters">
-        <Grid columns={4} plain>
+        <Grid columns={tab === "agents" ? 3 : 2} plain>
           <Segmented options={[{ value: "mtd", label: "MTD" }, { value: "lm", label: "Last month" }, { value: "ytd", label: "YTD" }, { value: "t30", label: "Last 30d" }]} value={per} onChange={(v: string) => setPer(v as Per)} />
-          <Select label="Group" options={[{ value: "team", label: "Whole team" }, { value: "isa", label: "ISA Team" }, { value: "coaching", label: "Coaching group" }, { value: "agent", label: "Single agent" }]} value={view} onChange={setView} />
-          <Select label="Agent" options={agentOpts} value={agent} onChange={(v: string) => { setAgent(v); setView("agent"); }} />
-          <Toggle label="Include leases & referrals in GCI" value={lrOn === "on"} onChange={(v: boolean) => setLrOn(v ? "on" : "off")} />
+          <Toggle label="Include leases & referrals (all GCI and ISA)" value={lrOn === "on"} onChange={(v: boolean) => setLrOn(v ? "on" : "off")} />
+          {tab === "agents" ? <Select label="Agent (drill-down)" options={agentOpts} value={agent} onChange={setAgent} /> : null}
         </Grid>
         <Text>{`Showing ${label} · ${PL[per]} (${D.periods[per][0]} to ${D.periods[per][1]}) · GCI ${LRL}. Each figure is labelled with its source.`}</Text>
       </Section>
 
-      <Section heading="Production" caption={`Sisu closings ${LRL} (lease/referral = sale price under $25k, a Ref/Lease address, or an eXp LeaseRental/Referral file). eXp sales counts never include leases/referrals; eXp team revenue follows the toggle.`}>
+      <Section heading="Production" caption={`Sisu closings ${LRL} (lease/referral = sale price under $25k, a Ref/Lease address, or an eXp LeaseRental/Referral file). eXp sales counts never include leases/referrals; eXp team revenue follows the toggle. Three GCI figures: gross (Sisu, by close date), team share (eXp, by close date), deposited (P&L, by deposit date). Sisu units are sides, so a deal where the team represents both buyer and seller counts twice; eXp counts transactions. Deborah's team-leader share of eXp revenue counts in team totals but on no agent row.`}>
         <Table columns={["Metric", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
-          ["Closed units", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : ""), "Sisu closed_dt"],
+          ["Closed units (sides)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "Sisu closed_dt; eXp report"],
           ["Closed volume", usd(s.sVol[i]) + (per === "ytd" ? `  (${yoy(s.sVol[2], s.sVol[4])})` : ""), "Sisu trans_amt"],
-          ["GCI", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
+          ["GCI (gross)", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
           ["Closed sales units (de-duplicated)", n0(s.xUnits[i]), "eXp report"],
           ["Closed sales volume", usd(s.xVol[i]), "eXp report"],
-          ["Team revenue", usd(s.xRev[i]), "eXp report"],
+          ["Team revenue (team share)", usd(s.xRev[i]), "eXp report"],
           ["Closed leases / referrals", `${n0(s.lease[i])} / ${n0(s.ref[i])}`, "eXp report"],
           ["Pending sales (now)", `${n0(s.pend)} · ${usd(s.pendVol)}`, "eXp report"],
         ]} />
@@ -221,21 +216,21 @@ export default function Dashboard() {
       </Section>
       <Section heading="Activity">
         <Table columns={["Activity", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
-          ["Outbound calls", n0(s.out[i]), "FUB calls"],
+          ["Outbound calls", n0(s.out[i]), "FUB calls, humans only (AI dialer excluded)"],
           ["Calls 60s or longer (in + out)", n0(s.conn[i]), "FUB calls"],
           ["Appointments created", n0(s.appt[i]), "FUB appointments"],
           ...(s.up7 != null ? [["Appointments in next 7 days", n0(s.up7), "FUB appointments"]] : []),
           ["Dials", n0(s.dials[i]), "Sisu activity (DIALS)"],
           ["Conversations", n0(s.contacts[i]), "Sisu activity (CONTA)"],
           ["Texts", n0(s.texts[i]), "Sisu activity (TEXTM, synced from FUB)"],
-          ["Appointments set / met", `${n0(s.sApptSet[i])} / ${n0(s.sApptMet[i])}`, "Sisu transactions"],
+          ["Appointments set / met (partial data)", `${n0(s.sApptSet[i])} / ${n0(s.sApptMet[i])}`, "Sisu transactions; many have no dates"],
           ["First showings", n0(s.sShow[i]), "Sisu transactions"],
         ]} />
         <Text>Sisu activity history via the API starts in July 2026, so YTD equals roughly the last 90 days. No showing activity type is logged in Sisu this year.</Text>
       </Section>
       <Section heading="Conversion funnel" caption="Sisu transaction milestone dates in the period (each step counted independently, not a cohort).">
-        <Bars bars={[["Leads (FUB)", s.leads[i]], ["Appointments set", s.sApptSet[i]], ["Appointments met", s.sApptMet[i]], ["Signed", s.sSigned[i]], ["Under contract", s.sUC[i]], ["Closed", s.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v, display: n0(v) }))} emphasis="none" />
-        <Text>{`Lead to FUB appointment rate: ${pct(s.appt[i], s.leads[i])}. Appointment met to signed: ${pct(s.sSigned[i], s.sApptMet[i])}.`}</Text>
+        <Bars bars={[["Leads (FUB)", s.leads[i]], ["Appointments set (partial data)", s.sApptSet[i]], ["Appointments met (partial data)", s.sApptMet[i]], ["Signed (partial data)", s.sSigned[i]], ["Under contract", s.sUC[i]], ["Closed", s.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v, display: n0(v) }))} emphasis="none" />
+        <Text>{`Lead to FUB appointment rate: ${pct(s.appt[i], s.leads[i])}. Appointment met to signed: ${pct(s.sSigned[i], s.sApptMet[i])}. Sisu appointment and signed dates are partial data (often left blank), so those steps undercount; under contract uses Sisu uc_dt.`}</Text>
       </Section>
       {view !== "agent" ? (
         <Section heading="Pipeline" caption="Active FUB deals by pipeline and stage, and open Sisu transactions by status (current, not period-based).">
@@ -248,7 +243,6 @@ export default function Dashboard() {
       {up30.length ? (
         <Section heading="Upcoming closings" caption="Pending eXp transactions with a scheduled close in the next 30 days.">
           <Table columns={["Date", "Address", "Agents", "Type", "Price", "SkySlope stage"]} rows={sortRowsBy(up30.map((u: any) => [fmtDate(u.date), u.address.replace(", US", ""), u.agents, u.type, usd(u.price), u.stage || "blank"]), srt.up)} />
-          {sortCtl("up", ["Date", "Address", "Agents", "Type", "Price", "SkySlope stage"])}
         </Section>
       ) : null}
       <Section heading="Alerts" caption="Candidates to review; computed from the snapshot, not live.">
@@ -257,6 +251,10 @@ export default function Dashboard() {
         </Section>) : null}
         {stale.length ? (<Section heading={`Pending past scheduled close (${stale.length})`}>
           <Table columns={["Scheduled", "Days late", "Address", "Agents", "Stage"]} rows={stale.map((u: any) => [fmtDate(u.date), { text: String(u.days), tone: "danger" }, u.address.replace(", US", ""), u.agents, u.stage || "blank"])} />
+        </Section>) : null}
+        {sStale.length ? (<Section heading={`Sisu pending past forecast close (${sStale.length})`}>
+          <Table columns={["Forecast close", "Days late", "Client", "Address", "Agent"]} rows={sStale.map((u: any) => [fmtDate(u.date), { text: String(u.days), tone: "danger" }, u.client, u.address, u.agent])} />
+          <Text>Sisu transactions still marked Pending whose forecasted close date has passed. Update the status (closed or fallen through) or the forecast date in Sisu.</Text>
         </Section>) : null}
         {unc.length ? (<Section heading={`New leads with no contact after 15 min (${unc.length})`}>
           <Table columns={["Lead", "Source", "Assigned", "Created", "Hours waiting"]} rows={unc.map((u: any) => [u.name, u.source, u.assigned, u.created, { text: String(u.age_h), tone: "warning" }])} />
@@ -277,14 +275,13 @@ export default function Dashboard() {
         <Rows rows={[
           { title: "FUB texts", detail: "FUB will not list texts team-wide; texts come from Sisu's FUB sync, and speed to lead uses calls only." },
           { title: "Odd scheduled dates", detail: D.odd.map((o: any) => `${o.address.replace(", US", "")} scheduled ${o.sched}`).join("; ") },
-          { title: "Unmatched eXp names", detail: D.unExp.join(", ") + ". These count in team totals but not in agent or group views." },
+          { title: "Unmatched eXp names", detail: D.unExp.join(", ") + ". They are not FUB users, so each shows as its own named row (marked \"not in FUB\") in agent views and counts in team totals, not group views. Sisu agents missing from Sisu's agent list are named from the eXp file at the same address; any left over sit on \"Unassigned / former agent\"." },
           { title: "Unmatched Sisu agents", detail: D.unSisu.join(", ") || "none" },
           { title: "Lead spike", detail: "About 6,000 FUB leads were created in September 2026, likely an import, which inflates YTD and last-month lead counts." },
         ]} />
       </Section>
       <Section heading="ISA tracking" caption={`${PL[per]}. Human ISAs = FUB "ISA Team" minus Jesse Jones (Fello AI dialer, reported separately below). Leases ${lease === "in" ? "included" : "excluded"}. Converted = FUB tags "<Name> - Converted", "<Name> Converted", and "... Converted Lease".`}>
         <Segmented options={isaOpts} value={isaSel} onChange={setIsaSel} />
-        <Segmented options={[{ value: "in", label: "Leases included" }, { value: "out", label: "Leases excluded" }]} value={lease} onChange={setLease} />
         <Grid columns={2}>
           <Table columns={["ISA activity", PL[per]]} rows={[
             ["Leads routed to ISA", n0(IS.assigned[i])],
@@ -359,28 +356,25 @@ export default function Dashboard() {
         </Section>
       </Section>
       <Section heading="Agent scorecard" caption={`${PL[per]}; Sisu production ${LRL}, FUB leads and calls.`}>
-        <Segmented options={[{ value: "sGci", label: "GCI" }, { value: "sUnits", label: "Units" }, { value: "leads", label: "Leads" }, { value: "out", label: "Calls" }, { value: "appt", label: "Appts" }, { value: "texts", label: "Texts" }]} value={sortBy} onChange={setSortBy} />
         <Table columns={["Agent", "GCI", "Units", "Volume", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => [D.names[r.k] || r.k, usd(r.s.sGci[i]), n0(r.s.sUnits[i]), usd(r.s.sVol[i]), n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]), srt.score)} />
-        {sortCtl("score", ["Agent", "GCI", "Units", "Volume", "Leads", "Calls", "Appts", "Texts", "Pending"])}
       </Section>
       <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; Sisu production ${LRL}.`}>
-        <Select label="Agent" options={agentOpts} value={agent} onChange={setAgent} />
         {(() => { const a: any = SG(D.segs[agent]); return a ? (
           <Grid columns={2}>
             <Properties items={[
               { label: "GCI", value: usd(a.sGci[i]) }, { label: "Closed units", value: n0(a.sUnits[i]) }, { label: "Closed volume", value: usd(a.sVol[i]) },
               { label: "Pending (now)", value: n0(a.pend) }, { label: "New leads", value: n0(a.leads[i]) }, { label: "Outbound calls", value: n0(a.out[i]) },
               { label: "Appointments", value: n0(a.appt[i]) }, { label: "Texts", value: n0(a.texts[i]) }]} />
-            <Bars bars={[["Leads (FUB)", a.leads[i]], ["Appointments set", a.sApptSet[i]], ["Appointments met", a.sApptMet[i]], ["Signed", a.sSigned[i]], ["Under contract", a.sUC[i]], ["Closed", a.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v || 0, display: n0(v) }))} emphasis="none" />
+            <Bars bars={[["Leads (FUB)", a.leads[i]], ["Appointments set (partial data)", a.sApptSet[i]], ["Appointments met (partial data)", a.sApptMet[i]], ["Signed (partial data)", a.sSigned[i]], ["Under contract", a.sUC[i]], ["Closed", a.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v || 0, display: n0(v) }))} emphasis="none" />
           </Grid>) : <Text>No Sisu or FUB activity recorded for this agent.</Text>; })()}
       </Section>
-      <Section heading="Lead attribution" caption={`${PL[per]}. Multi-touch: every tool with evidence on a lead gets full credit, so tool columns overlap and do not sum to the total. A lead is in the period if it was created, touched by a timestamped assist, or ISA-converted in it. Leases ${lease === "in" ? "included" : "excluded"} (toggle in ISA tracking).${view === "agent" ? " Matrix shows the whole team; tool table and lead list are for the selected agent (year to date)." : ""}`}>
+      <Section heading="Lead attribution" caption={`${PL[per]}. Multi-touch: every tool with evidence on a lead gets full credit, so tool columns overlap and do not sum to the total. A lead is in the period if it was created, touched by a timestamped assist, or ISA-converted in it. Leases ${lease === "in" ? "included" : "excluded"} (global switch).${view === "agent" ? " Matrix shows the whole team; tool table and lead list are for the selected agent (year to date)." : ""}`}>
         <Segmented options={[{ value: "0", label: "Leads" }, { value: "1", label: "With appt" }, { value: "2", label: "FUB deal" }, { value: "3", label: "Closed" }, { value: "4", label: "GCI" }]} value={atMetric} onChange={setAtMetric} />
         <Table columns={["Original source", ...AT.cols]} rows={AT.src.map((s: string, r: number) => [s, ...(atM[r] || []).map(atFmt)])} />
         <Text>Rows: FUB source field (never overwritten). Columns: assist tools, ISA conversion, leads with no assist, any assist, and all leads. Closed, volume and GCI count only Sisu closings (matched to the lead by email or name) whose close date falls in the selected period.</Text>
         <Section heading="Closed GCI by original lead source">
-          <Table columns={["FUB source", "Closed", "Volume", "GCI"]} rows={sortRowsBy(atGs.map((r: any) => [r[0], n0(r[1]), usdK(r[2] * 1000), usd(r[3])]), srt.gs)} />
-          {sortCtl("gs", ["FUB source", "Closed", "Volume", "GCI"])}
+          <Table columns={["FUB source", "Closed", "Volume", "GCI"]} rows={(() => { const rr = atGs.map((r: any) => [r[0], n0(r[1]), usdK(r[2] * 1000), usd(r[3])]); const k = rr.findIndex((r: any) => String(r[0]).startsWith("All other") || r[0] === "Total"); return k < 0 ? sortRowsBy(rr, srt.gs) : [...sortRowsBy(rr.slice(0, k), srt.gs), ...rr.slice(k)]; })()} />
+          <Text>{`Top 10 sources, then all other sources and the total of every closing matched to a FUB lead (${LRL}). "All other sources" and "Total" stay at the bottom when sorting.`}</Text>
           <Text>{`Exact FUB source values, top 10, closings dated in the period, ${LRL}. 2026 closings from leads created before 2026 count toward that lead's original FUB source. In agent view this shows the whole team.`}</Text>
         </Section>
         <Section heading="Assist tool performance">
@@ -391,19 +385,17 @@ export default function Dashboard() {
         <Section heading={`Lead drill-down (${atRows.length} shown)`}>
           <Table columns={["Lead", "Original source", "Assists", "ISA", "Assigned agent", "Stage", "Outcome", "GCI", "Last touch"]}
             rows={sortRowsBy(atRows.map((r: any) => [r[0], r[1], atLetters(r[2]), r[3], r[4], r[6], r[7], (Array.isArray(r[8]) ? r[8][i] : r[8]) ? usd(Array.isArray(r[8]) ? r[8][i] : r[8]) : "", r[9]]), srt.drill)} />
-          {sortCtl("drill", ["Lead", "Original source", "Assists", "ISA", "Assigned agent", "Stage", "Outcome", "GCI", "Last touch"])}
           <Text>{`Leads with an assist or ISA conversion and an outcome (appointment, deal, closing or ISA conversion), closed first. The page carries the top ${AT.l.length} of ${n0(AT.c.drill_total)}; the full list is in attr.json in the pipeline.`}</Text>
         </Section>
         <Section heading="Signals used">
           <Table columns={["Evidence in FUB", "Count"]} rows={Object.entries(AT.ev).slice(0, 30).map(([k, v]: any) => [k, n0(v)])} />
         </Section>
       </Section>
-      <Section heading="Team P&L" caption="Tax In-House monthly P&L (reports@taxinhouse.com), latest report Jan-Sep 2026. Accounting basis: GCI deposited, not Sisu close dates; months may be restated in later reports.">
+      <Section heading="Team P&L" caption="Tax In-House monthly P&L (reports@taxinhouse.com), latest report Jan-Sep 2026. Accounting basis: GCI deposited (after brokerage split), not Sisu gross by close date; months may be restated in later reports.">
         <Legend names={["Income", "COGS + expenses", "Net income"]} />
         {PnlChart({ sel: pm, onPick: setPm })}
-        <Text>Hover a month for its figures; click it to open the month below.</Text>
+        <Text>Hover a month for its figures; click a month to show its detail below.</Text>
         <Section heading={`${mNamesG[pm]} 2026 in detail`}>
-          <Segmented options={PNL.ms.map((m: string, k: number) => ({ value: String(k), label: mNamesG[k] }))} value={String(pm)} onChange={(v: string) => setPm(Number(v))} />
           <Grid columns={2}>
             <Properties items={[0, 1, 2, 14, 15, 16, 17].map((r: number) => ({ label: PNL.rows[r][0], value: PNL.rows[r][pm + 1] < 0 ? "-" + usd(-PNL.rows[r][pm + 1]) : usd(PNL.rows[r][pm + 1]) }))} />
             <Bars bars={PNL.rows.slice(3, 14).map((r: any[]) => ({ label: r[0].replace(/^\d+ /, ""), value: r[pm + 1], display: usd(r[pm + 1]) })).filter((b: any) => b.value > 0).sort((a: any, b: any) => b.value - a.value)} />
@@ -411,7 +403,7 @@ export default function Dashboard() {
         </Section>
         <Section heading="All lines by month">
           <Table columns={["Line", ...PNL.ms.map((m: string, k: number) => mNamesG[k]), "YTD"]} rows={sortRowsBy(PNL.rows.map((r: any[]) => [r[0], ...r.slice(1).map((v: number) => v < 0 ? { text: "-" + usd(-v), tone: "danger" } : usd(v))]), srt.pnl)} />
-          {sortCtl("pnl", ["Line", ...PNL.ms.map((m: string, k: number) => mNamesG[k]), "YTD"])}
+          
         </Section>
         <Table columns={["P&L report through", "YTD profit", "Federal tax estimate"]} rows={PNL.est.map((r: any[]) => [r[0], usd(r[1]), usd(r[2])])} />
       </Section>
@@ -426,7 +418,6 @@ export default function Dashboard() {
         <Section heading="Fix list (largest first; pre-2026 leads are informational)">
           <Segmented options={[{ value: "all", label: "All categories" }, ...Array.from(new Set((AT.rc.f as any[]).map((r: any) => String(r[4])))).sort().map((c: string) => ({ value: c, label: "Category " + c }))]} value={rcCat} onChange={setRcCat} />
           <Table columns={["Address", "Agent", "Close date", "GCI", "Cat.", "Issue", "Suggested fix"]} rows={sortRowsBy((AT.rc.f as any[]).filter((r: any) => rcCat === "all" || String(r[4]) === rcCat).map((r: any) => [r[0], r[1], r[2], usd(r[3]), r[4], r[5], r[6]]), srt.fix)} />
-          {sortCtl("fix", ["Address", "Agent", "Close date", "GCI", "Cat.", "Issue", "Suggested fix"])}
           <Text>Matching: Sisu ↔ eXp by normalized street address (number + street name, no suffix/unit), else same agent + close date within 10 days + price within 3%. Sisu ↔ FUB by email, then full name, then address. A Sisu closing matched to several duplicate FUB contacts is credited once (earliest contact). Full list in recon.json in the pipeline.</Text>
         </Section>
       </Section>
