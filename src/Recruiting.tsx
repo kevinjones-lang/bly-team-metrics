@@ -32,7 +32,10 @@ export default function Recruiting({ data }: { data?: any }) {
   const hs: any[] = data.hires_by_source ?? []; const hmax = Math.max(1, ...hs.map((h) => h.hires ?? 0));
   const tk = ["applied", "contacted", "interview_set", "interview_kept", "hired", "onboarded"];
   const mmax = Math.max(1, ...months.map((m) => m.applied ?? 0));
+  const mbs: any[] = data.funnel_by_month_by_source ?? [];
+  if (mbs.length) for (const m of months) m.by_source = mbs.filter((x) => x.month === m.month);
   const srcCols: string[] = Array.from(new Set(months.flatMap((m) => (m.by_source ?? []).map((s: any) => s.source))));
+  const fy = data.first_year_results; const ghl: any[] = data.ghl_pipeline_summary ?? []; const sp: any[] = data.hires_by_sponsor ?? [];
   return (
     <div className="recruiting page">
       <div className="rc-banner"><div><span className="rc-k">Source</span> {data.source ?? "—"}</div><div><span className="rc-k">As of</span> {data.as_of ?? "—"}{data.period_label ? ` · ${data.period_label}` : ""}</div></div>
@@ -55,13 +58,26 @@ export default function Recruiting({ data }: { data?: any }) {
           <div className="rc-legend"><span><i className="a" /> Applied</span><span><i className="h" /> Hired</span></div>
           <div className="tablewrap"><table><thead><tr><th>Month</th>{tk.map((k) => <th className="r" key={k}>{STAGES.find((s) => s[0] === k)![1]}</th>)}</tr></thead>
             <tbody>{months.map((m) => <tr key={m.month}><td>{mlabel(m.month)}</td>{tk.map((k) => <td className="r" key={k}>{num(m[k])}</td>)}</tr>)}</tbody></table></div>
-          {srcCols.length ? <><h3 className="serif">Applicants by source, by month</h3><div className="tablewrap"><table><thead><tr><th>Month</th>{srcCols.map((s) => <th className="r" key={s}>{s}</th>)}</tr></thead>
-            <tbody>{months.map((m) => <tr key={m.month}><td>{mlabel(m.month)}</td>{srcCols.map((s) => <td className="r" key={s}>{num((m.by_source ?? []).find((x: any) => x.source === s)?.applied)}</td>)}</tr>)}</tbody></table></div></> : null}</section>
+          {srcCols.length ? <><h3 className="serif">Applicants by source, by month{mbs.length ? " (applied / hired)" : ""}</h3><div className="tablewrap"><table><thead><tr><th>Month</th>{srcCols.map((s) => <th className="r" key={s}>{s}</th>)}</tr></thead>
+            <tbody>{months.map((m) => <tr key={m.month}><td>{mlabel(m.month)}</td>{srcCols.map((s) => <td className="r" key={s}>{(() => { const x = (m.by_source ?? []).find((x: any) => x.source === s); return mbs.length ? `${num(x?.applied)} / ${num(x?.hired)}` : num(x?.applied); })()}</td>)}</tr>)}</tbody></table></div></> : null}</section>
 
         <section className="section"><h2 className="serif">Hires by source</h2>
-          <div className="rc-hs">{hs.map((h) => <div className="rc-step" key={h.source}><span className="rc-sl">{h.source}</span><span className="rc-track"><i style={{ width: `${(100 * (h.hires ?? 0)) / hmax}%` }} /></span><b className="serif">{num(h.hires)}</b></div>)}{!hs.length ? <p className="caption">—</p> : null}</div>
+          <div className="rc-hs">{hs.map((h) => <div className="rc-step" key={h.source}><span className="rc-sl">{h.source}</span><span className="rc-track"><i style={{ width: `${(100 * (h.hires ?? 0)) / hmax}%` }} /></span><b className="serif">{num(h.hires)}</b>{h.hires_all_time != null ? <span className="rc-py">all-time {num(h.hires_all_time)}</span> : null}</div>)}{!hs.length ? <p className="caption">—</p> : null}</div>
           {(data.funnel_by_source ?? []).length ? <><h3 className="serif">Funnel by source</h3><div className="tablewrap"><table><thead><tr><th>Source</th>{STAGES.map(([k, l]) => <th className="r" key={k}>{l}</th>)}</tr></thead>
             <tbody>{data.funnel_by_source.map((r: any) => <tr key={r.source}><td>{r.source}</td>{STAGES.map(([k]) => <td className="r" key={k}>{num(r[k])}</td>)}</tr>)}</tbody></table></div></> : null}</section>
+
+        {fy ? <section className="section"><h2 className="serif">First-year results</h2>
+          <div className="rc-rates">{([["Agents tracked", num(fy.agents_tracked)], ["With a first closing", num(fy.agents_with_first_closing)], ["Avg days to first closing", num(fy.avg_days_to_first_closing)], ["Closing within 90 days", pct(fy.share_closing_within_90_days)],
+            ["First-year closings", num(fy.total_first_year_closings)], ["Closings per agent", typeof fy.avg_first_year_closings_per_agent === "number" ? fy.avg_first_year_closings_per_agent.toFixed(2) : "—"], ["Inactive agents", num(fy.agents_inactive)]] as [string, string][]).map(([l, v]) =>
+            <div className="rc-rate" key={l}><div className="serif rc-v">{v}</div><div className="rc-l">{l}</div></div>)}</div></section> : null}
+
+        {sp.length ? <section className="section"><h2 className="serif">Hires by sponsor</h2><p className="caption">Sponsors are anonymized.</p><div className="tablewrap"><table><thead><tr><th>Sponsor</th><th className="r">2026 hires</th><th className="r">All-time</th><th className="r">Still on team</th></tr></thead>
+          <tbody>{sp.map((r) => <tr key={r.sponsor}><td>{r.sponsor}</td><td className="r">{num(r.hires)}</td><td className="r">{num(r.hires_all_time)}</td><td className="r">{num(r.still_on_team)}</td></tr>)}</tbody></table></div></section> : null}
+
+        {ghl.length ? <section className="section"><h2 className="serif">Go High Level pipelines</h2><p className="caption">Current open records by stage. Only pipelines marked "in tracker" feed the funnel above.</p>
+          <div className="rc-ghl">{ghl.map((g) => <div className="rc-rate" key={g.pipeline}><div className="rc-l">{g.pipeline}{g.imported_to_tracker ? <span className="fa-tag">in tracker</span> : null}</div>
+            <div className="caption">{num(g.total)} total · {num(g.open)} open · {num(g.stale_over_30_days)} stale 30d+</div>
+            <table><tbody>{(g.stages ?? []).map((st: any) => <tr key={st.stage}><td>{st.stage}</td><td className="r">{num(st.count)}</td></tr>)}</tbody></table></div>)}</div></section> : null}
 
         {(data.recruiter_activity ?? []).length ? <section className="section"><h2 className="serif">Recruiter activity</h2><div className="tablewrap"><table><thead><tr><th>Recruiter</th><th>Period</th><th className="r">Calls</th><th className="r">Texts</th><th className="r">Interviews held</th><th className="r">Offers</th></tr></thead>
           <tbody>{data.recruiter_activity.map((r: any, i: number) => <tr key={i}><td>{r.recruiter ?? "—"}</td><td>{r.period ?? "—"}</td>{["calls", "texts", "interviews_held", "offers"].map((k) => <td className="r" key={k}>{num(r[k])}</td>)}</tr>)}</tbody></table></div></section> : null}

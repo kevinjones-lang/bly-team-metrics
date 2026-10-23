@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import "./fubaudit.css";
+export { num, mins };
 
 const AI = "Jesse Jones";
 const num = (v: any) => (v === null || v === undefined || v === "" || (typeof v === "number" && (v < 0 || !isFinite(v))) ? "—" : typeof v === "number" ? v.toLocaleString("en-US") : String(v));
-const mins = (v: any) => (typeof v !== "number" || v < 0 ? "—" : v < 60 ? `${v.toFixed(1)} min` : `${(v / 60).toFixed(1)} h`);
+const mins = (v: any) => (typeof v !== "number" || v < 0 ? "—" : v < 60 ? `${v.toFixed(1)} min` : v < 600 ? `${v.toFixed(1)} min` : `${(v / 60).toFixed(1)} h`);
 const T = ({ t }: { t?: string | null }) => (t ? <p className="caption">{t}</p> : null);
 
 type Col = { k: string; l: string; f?: (v: any) => string; n?: boolean };
@@ -16,7 +17,7 @@ const COLS: Col[] = [
   { k: "notes", l: "Notes", n: true }, { k: "appts", l: "Appts", n: true }, { k: "openTasks", l: "Open tasks", n: true }, { k: "overdue", l: "Overdue", n: true },
 ];
 
-export default function FubAudit({ data }: { data?: any }) {
+export function Overview({ data }: { data?: any }) {
   const [q, setQ] = useState(""); const [role, setRole] = useState("All"); const [hideAI, setHideAI] = useState(false);
   const [sort, setSort] = useState<{ k: string; d: 1 | -1 }>({ k: "people", d: -1 });
   const s = data?.site ?? {}; const u = data?.uncontacted ?? {}; const stl = s.speedToLead ?? {};
@@ -28,27 +29,26 @@ export default function FubAudit({ data }: { data?: any }) {
   const shown = rows.filter((r: any) => (role === "All" || r.role === role) && (!hideAI || !r.isAI) && r.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a: any, b: any) => { const x = a[sort.k], y = b[sort.k]; const nx = x == null || x < 0, ny = y == null || y < 0; if (nx !== ny) return nx ? 1 : -1; return (x > y ? 1 : x < y ? -1 : 0) * sort.d; });
   if (!data) return <div className="gatecard"><h1 className="serif">FUB Audit</h1><p className="rule" /><p>No audit data in this snapshot yet. It loads with the next pipeline run.</p></div>;
-  const sum = s.summary ?? {}; const tk = s.tasks ?? {};
+  const sum = s.summary ?? {}; const tk = s.tasks ?? {}; const ov = data.overview; const hy = data.views?.hygiene?.team_excl_jesse;
   const cards: [string, any, string?][] = [
     ["People in FUB", sum.people], ["Users", sum.users], ["Deals", sum.deals],
-    ["Median speed to lead", mins(stl.exclAI?.median), "First human call, excl. Fello AI dialer"],
-    ["Uncontacted, 30-day", u.fubm_30d ?? stl.exclAI?.uncontacted, "FUB Manager definition"],
-    ["Uncontacted, 7-day", u.tracker_7d, "Metrics Tracker definition"],
-    ["Overdue human tasks", tk.humanOverdue, tk.humanOpen != null ? `of ${num(tk.humanOpen)} open` : undefined],
+    ...(ov ? [[ov.median_label ?? "Median speed to lead", mins(ov.median_min), "First human call, excl. Fello AI dialer"], ["Uncontacted, 7-day", ov.unc7, "New leads, human-owned"], ["Uncontacted, 30-day", ov.unc30, "New leads, human-owned"]] as [string, any, string?][]
+      : [["Median speed to lead", mins(stl.exclAI?.median), "First human call, excl. Fello AI dialer"], ["Uncontacted, 30-day", u.fubm_30d ?? stl.exclAI?.uncontacted, "FUB Manager definition"], ["Uncontacted, 7-day", u.tracker_7d, "Metrics Tracker definition"]] as [string, any, string?][]),
+    ["Overdue human tasks", hy?.overdue_tasks ?? tk.humanOverdue, (hy?.open_tasks ?? tk.humanOpen) != null ? `of ${num(hy?.open_tasks ?? tk.humanOpen)} open` : undefined],
   ];
   return (
     <div className="fubaudit page">
       <div className="asof">As of {s.asOfLabel ?? data.as_of ?? "—"}{s.source ? ` · ${s.source}` : ""}</div>
       <h1 className="page-title serif">FUB Audit</h1>
-      {s.text?.topCallout ? <p className="summary">{s.text.topCallout}</p> : null}
+      {!ov && s.text?.topCallout ? <p className="summary">{s.text.topCallout}</p> : null}
       <div className="page-body">
         <div className="fa-cards">{cards.map(([l, v, h]) => <div className="fa-card" key={l}><div className="fa-v serif">{typeof v === "string" ? v : num(v)}</div><div className="fa-l">{l}</div>{h ? <div className="fa-h">{h}</div> : null}</div>)}</div>
         <div className="fa-note"><strong>Jesse Jones is the Fello AI dialer</strong>, not a person. His leads, calls, texts and tasks are AI activity, shown separately and excluded from human totals.</div>
 
         <section className="section"><h2 className="serif">Key findings</h2>
-          <table><tbody>{(s.kpis ?? []).filter((k: any) => !/^Uncontacted/.test(k[0])).map((k: any) => <tr key={k[0]}><td>{k[0]}</td><td className="r">{k[1] ?? "—"}</td></tr>)}</tbody></table></section>
+          <table><tbody>{(s.kpis ?? []).filter((k: any) => !(ov ? /^(Uncontacted|Speed to lead|New leads)/ : /^Uncontacted/).test(k[0])).map((k: any) => <tr key={k[0]}><td>{k[0]}</td><td className="r">{k[1] ?? "—"}</td></tr>)}</tbody></table></section>
 
-        <section className="section"><h2 className="serif">Speed to lead</h2><T t={s.notes?.speedToLead} />
+        {ov ? <p className="caption">Speed to lead and uncontacted counts use FUB Manager's current cohort (bulk imports excluded), as of {ov.as_of?.slice(0, 16).replace("T", " ") ?? "—"} CT. Detail is on the Speed to Lead tab.</p> : <section className="section"><h2 className="serif">Speed to lead</h2><T t={s.notes?.speedToLead} />
           <div className="fa-grid3">{[["Human-owned leads", stl.exclAI], ["All new leads", stl.all], ["Owned by Fello AI dialer", stl.aiOwned]].map(([l, o]: any) =>
             <div className="fa-mini" key={l}><div className="fa-l">{l}</div><div className="fa-v serif">{mins(o?.median)}</div><div className="fa-h">{num(o?.n)} leads · {num(o?.uncontacted)} uncontacted</div></div>)}</div>
           <h3 className="serif">First human call</h3>
@@ -56,13 +56,17 @@ export default function FubAudit({ data }: { data?: any }) {
           <h3 className="serif">By source</h3>
           <table><thead><tr><th>Source</th><th className="r">Leads</th><th className="r">Median first call</th><th className="r">Uncontacted</th></tr></thead>
             <tbody>{(stl.bySource ?? []).map((r: any) => <tr key={r[0]}><td>{r[0]}</td><td className="r">{num(r[1])}</td><td className="r">{mins(r[2])}</td><td className="r">{num(r[3])}</td></tr>)}</tbody></table>
-          <T t={s.text?.speed} /></section>
+          <T t={s.text?.speed} /></section>}
 
         <section className="section"><h2 className="serif">Uncontacted leads</h2>
-          <div className="fa-grid2">
+          {ov ? <div className="fa-grid2">
+            <div className="fa-mini"><div className="fa-l">7-day</div><div className="fa-v serif">{num(ov.unc7)}</div><div className="fa-h">{ov.unc_def ?? "—"}</div></div>
+            <div className="fa-mini"><div className="fa-l">30-day</div><div className="fa-v serif">{num(ov.unc30)}</div><div className="fa-h">{ov.unc_def ?? "—"}</div></div>
+          </div> : null}
+          {ov ? <p className="caption">Cross-check: the Metrics Tracker's own 7-day alert list shows {num(u.tracker_7d)}{u.tracker_asof ? ` as of ${u.tracker_asof}` : ""} (excl. AI dialer).</p> : <><div className="fa-grid2">
             <div className="fa-mini"><div className="fa-l">30-day · FUB Manager</div><div className="fa-v serif">{num(u.fubm_30d)}</div><div className="fa-h">{u.fubm_def ?? "—"}</div></div>
             <div className="fa-mini"><div className="fa-l">7-day · Metrics Tracker</div><div className="fa-v serif">{num(u.tracker_7d)}</div><div className="fa-h">{u.tracker_def ?? "—"}{u.tracker_asof ? ` · as of ${u.tracker_asof}` : ""}</div></div>
-          </div><p className="caption">Two windows, two definitions; the counts are not expected to match. Including the AI dialer's leads, the 30-day count is {num(u.fubm_30d_all)}.</p></section>
+          </div><p className="caption">Two windows, two definitions; the counts are not expected to match. Including the AI dialer's leads, the 30-day count is {num(u.fubm_30d_all)}.</p></>}</section>
 
         <section className="section"><h2 className="serif">Data hygiene</h2>
           <table><tbody>{(s.hygiene ?? []).map((h: any) => <tr key={h[0]}><td>{h[0]}</td><td className="r">{h[1] ?? "—"}</td></tr>)}

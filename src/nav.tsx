@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import Dashboard from "./Dashboard";
-import FubAudit from "./FubAudit";
+import FubAudit from "./FubTabs";
 import Recruiting from "./Recruiting";
 
 /** Sidebar entries. Add a new component by appending one object; hash route = #/<id>. */

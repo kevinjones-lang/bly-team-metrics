@@ -31,3 +31,5 @@ i.a { background: var(--blue); } i.h { background: var(--gold); }
 .rc-pl { display: grid; gap: 16px; grid-template-columns: 1fr; } @media (min-width: 640px) { .rc-pl { grid-template-columns: 1fr 1fr; } }
 .rc-pltot { margin: 8px 0; color: var(--muted); } .rc-pltot span { font-size: 34px; color: var(--charcoal); margin-right: 6px; }
 .rc-res a { color: var(--blue); font-weight: 600; }
+.rc-ghl { display: grid; gap: 12px; grid-template-columns: 1fr; } @media (min-width: 900px) { .rc-ghl { grid-template-columns: repeat(2, minmax(0,1fr)); } } .rc-ghl table { margin-top: 6px; }
+@media (min-width: 900px) { .rc-rates { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); } }

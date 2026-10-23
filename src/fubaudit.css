@@ -43,3 +43,15 @@
   .navopen .sidebar { transform: none; }
   .navopen .scrim { display: block; position: fixed; inset: 0; background: rgba(18,21,28,.5); z-index: 40; }
 }
+.ft-tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 0 0 16px; position: sticky; top: 62px; background: var(--ivory); z-index: 5; scrollbar-width: none; }
+.ft-tabs a { flex: 0 0 auto; padding: 12px 14px; min-height: 44px; color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; border-bottom: 3px solid transparent; white-space: nowrap; }
+.ft-tabs a.on { color: var(--blue); border-bottom-color: var(--blue); }
+.ft-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ft-head h2 { font-size: clamp(26px, 3.5vw, 36px); margin: 0; }
+.ft-chart { width: 100%; height: auto; max-height: 220px; display: block; }
+@media (min-width: 900px) { .fa-cards.ft-4 { grid-template-columns: repeat(4, minmax(0,1fr)); } .fa-cards.ft-5 { grid-template-columns: repeat(5, minmax(0,1fr)); } }
+.ft-def { margin-top: 10px; font-size: 13px; color: var(--muted); } .ft-def summary { cursor: pointer; color: var(--blue); }
+.ft-heat td { min-width: 64px; font-variant-numeric: tabular-nums; }
+.ft-seg { display: flex; gap: 6px; } .ft-seg button { min-height: 40px; padding: 8px 16px; border: 1px solid var(--line); background: var(--paper); border-radius: 2px; }
+.ft-seg button.on { background: var(--charcoal); color: var(--paper); border-color: var(--charcoal); }
+.fubtabs .rc-legend i.a { background: var(--blue); } .fubtabs .rc-legend i.h { background: var(--gold); }
