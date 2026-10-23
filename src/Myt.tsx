@@ -160,7 +160,8 @@ const PRESETS: { id: string; label: string; groups?: string[] }[] = [
   { id: "production", label: "Production", groups: ["Pipeline", "Production"] },
   { id: "money", label: "Money", groups: ["GCI & company dollar", "P&L"] },
   { id: "recruiting", label: "Recruiting", groups: ["Agents & recruiting"] },
-  { id: "activity", label: "Activity", groups: ["Leads & activity"] },
+  { id: "activity", label: "Activity", groups: ["Leads & activity", "ISA"] },
+  { id: "isa", label: "ISA", groups: ["ISA"] },
 ];
 const LS = "myt.metrics.v1";
 function initialSel(D: any): Set<string> {

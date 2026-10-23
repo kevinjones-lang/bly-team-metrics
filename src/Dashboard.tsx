@@ -317,7 +317,7 @@ export default function Dashboard() {
               ["Sisu pending", n0(IS.s_pending[i])], ["Sisu closed", n0(IS.s_closed[i])], ["Closed volume", usd(IS.s_vol[i])], ["Closed GCI", usd(IS.s_gci[i])]]} />
             <Table columns={["Tag owner", "Converted", "FUB deal", "Closed", "GCI"]} rows={Object.entries(ISA["alltime" + NL]).map(([k, v]: any) => [ISA.labels[k] || k, n0(v.converted), n0(v.fub_deal), n0(v.s_closed), usd(v.s_gci)])} />
           </Grid>
-          <Text>Right table is all time (Ralph limited to conversions dated this year). Sisu matches are by email, then first and last name, to transactions whose lead date is no more than 120 days before conversion.</Text>
+          <Text>Right table is all time. Sisu matches are by email, then first and last name, to transactions whose lead date is no more than 120 days before conversion.</Text>
         </Section>
         {Object.keys(IS.hand[i]).length ? (<Section heading="Handed off to">
           <Bars bars={Object.entries(IS.hand[i]).map(([k, v]: any) => ({ label: k, value: v, display: String(v) }))} />
@@ -339,7 +339,7 @@ export default function Dashboard() {
             { title: "Conversion date is estimated", detail: `FUB does not date tags. Used: first ISA-created appointment (${ISA.how["first ISA appointment"] || 0}), else last ISA call this year (${ISA.how["last ISA call"] || 0}), else lead created (${ISA.how["lead created"] || 0}).` },
             { title: "Routed to ISA", detail: "Lead currently assigned to an ISA user, or its first outbound call was made by one. FUB has no reassignment history in the API." },
             { title: "Appointments", detail: "Set = FUB appointments created by the ISA with a lead invited. Held = start time passed and an outcome other than no-show logged." },
-            { title: "Ralph", detail: "Former ISA. Ralph - Converted tags count only when the estimated conversion date is in 2026." },
+            { title: "Ralph", detail: "Former ISA, removed from all ISA views and totals. His converted leads are not reattributed; their lead sources stay as they are." },
             { title: "AI dialer", detail: "Jesse Jones is the Fello AI dialer. Excluded from human ISA totals, the scorecard, zero-activity alerts and per-person speed to lead. FELIX AI HANDOFF is reported in its own section." },
             { title: "Not yet counted", detail: "ISA_TRANSFER_SUCCESSFUL, ZHL Transferred and Zillow Live Transfer are listed but not credited to anyone." },
           ]} />
