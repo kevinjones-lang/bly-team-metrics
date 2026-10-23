@@ -100,7 +100,7 @@ export default function Zillow({ data }: { data?: any }) {
         <Funnel steps={[["Preferred buyer connections", z.preferred_buyer_connections], ["Met with", z.met_with_connections], ["ZHL transfers", z.zhl_transfers], ["Pre-approvals", z.preapprovals], ["Locks", z.locks], ["Funded", z.funded]]} />
         <p className="caption">Transfer rate {pc(z.transfer_rate)} · pre-approval rating {z.preapproval_rating ?? "—"} · PA transactions {num(z.pa_transactions)}.</p></section>
       <section className="section"><h2 className="serif">Closings credited</h2><div className="fa-cards ft-4"><Card l="2024" v={num(c["2024"])} /><Card l="2025" v={num(c["2025"])} /><Card l="2026" v={num(c["2026"])} /><Card l="Total" v={num(c["Grand Total"])} /></div>
-        <p className="caption">Zillow "Closes Preferred" tab. Transactions logged Mar 5 – Sep 2, 2026: {num(A.transactions_logged_mar_sep_2026)}.</p></section>
+        <p className="caption">2026: {num(A.closings_2026?.closed_to_date)} closed to date of {num(A.closings_2026?.logged)} logged · {usd(A.closings_2026?.closed_volume)} volume · {num(A.closings_2026?.scheduled_future)} scheduled later. 2026 closings cover only deals logged 3/5 to 9/2/26 (Zillow ToT tab); 2024 and 2025 come from the Closes Preferred tab, whose 2026 column is stale.</p></section>
       <section className="section"><h2 className="serif">Coaching flags</h2><Flags a={A} /></section>
       <section className="section"><h2 className="serif">Not in the sheet</h2>{nulls(A)}</section>
       <FubZp z={data.fub_zp} agent={agent} />
@@ -122,7 +122,7 @@ export default function Zillow({ data }: { data?: any }) {
         <div className="fa-mini"><div className="fa-l">FUB · "Zillow Preferred" leads created since {F90.since ?? "—"}</div><div className="fa-v serif">{num(F90.leads)}</div><div className="fa-h">FUB Manager source funnel, bulk imports excluded · {num(F90.deals_closed)} closed</div></div></div>
       <p className="caption">Zillow counts connections; FUB counts lead records by source and creation date. The definitions differ, so these are shown side by side, not reconciled.</p></section>
     <section className="section"><h2 className="serif">Team monthly, 2025 vs 2026</h2><div className="zl-charts"><MonthlyChart mt={data.monthly_team} k="PA Transactions" title="PA transactions" /><MonthlyChart mt={data.monthly_team} k="ZHL Funded Loans" title="ZHL funded loans" /></div>
-      <p className="caption">Zillow Premier Agent transactions and Zillow Home Loans funded loans, from the sheet's Dashboard tab. Team closings 2025: {num(cl.total_2025)}; 2026 column: {num(cl["2026"])}.</p></section>
+      <p className="caption">Zillow Premier Agent transactions and Zillow Home Loans funded loans, from the sheet's Dashboard tab. Team closings 2025: {num(cl.total_2025)} (Closes 2025 tab); 2026: {num(data.team_closings_2026?.closed_to_date)} closed to date from {num(data.team_closings_2026?.logged)} logged 3/5–9/2/26.</p></section>
     <section className="section"><h2 className="serif">Agent funnels</h2>{seg}<p className="caption">{winL}. Tap a header to sort. Blank count cells in Zillow's sheet mean 0; blank rates show —.</p><AgentTable rows={agents} win={win} />
       <p className="caption">Team {winL}: {num((win === "l40d" ? T4 : T6)["Buyer Connections"])} connections → {num((win === "l40d" ? T4 : T6).Appointments)} appointments → {num((win === "l40d" ? T4 : T6).Meetings)} met with → {num((win === "l40d" ? T4 : T6).Offers)} offers → {num((win === "l40d" ? T4 : T6)["Buyer Pending + Closed"])} pending + closed.</p></section>
     <section className="section"><h2 className="serif">ZHL funnel, last 90 days</h2>
@@ -131,7 +131,7 @@ export default function Zillow({ data }: { data?: any }) {
     <section className="section"><h2 className="serif">Closings by agent</h2>
       <div className="tablewrap"><table><thead><tr><th>Agent</th><th className="r">2024</th><th className="r">2025</th><th className="r">2026</th><th className="r">Total</th></tr></thead>
         <tbody>{closers.map((a) => <tr key={a.agent}><td>{a.agent}</td>{["2024", "2025", "2026", "Grand Total"].map((y) => <td key={y} className="r">{num(a.closings_by_year[y])}</td>)}</tr>)}</tbody></table></div>
-      <p className="caption">Zillow "Closes Preferred" tab.</p></section>
+      <p className="caption">Team 2026: {num(data.team_closings_2026?.closed_to_date)} closed to date · {usd(data.team_closings_2026?.closed_volume)} volume · {num(data.team_closings_2026?.scheduled_future)} scheduled to close later. 2026 closings cover only deals logged 3/5 to 9/2/26 (Zillow ToT tab); 2024 and 2025 come from the Closes Preferred tab, whose 2026 column is stale.</p></section>
     <section className="section"><h2 className="serif">Coaching flags</h2><p className="caption">Each agent's last-6-month rates (from counts) and ZHL transfer rate vs the team Grand Total. Up to four lowest gaps shown.</p>
       <div className="zl-coachgrid">{coach.map((a) => <Flags key={a.agent} a={a} />)}</div></section>
     <FubZp z={data.fub_zp} />
