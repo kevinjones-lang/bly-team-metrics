@@ -63,7 +63,7 @@ export function AgentBanner({ note }: { note?: string }) {
 }
 
 /** FUB/legacy names that differ from the Sisu name used in the selector. */
-const ALIAS: Record<string, string[]> = { "Osvaldo Castillo": ["Ozzy Castillo"], "Abbie Reeves": ["Abbie J Contreras"], "Alex Huerta": ["Raul Alejandro Huerta"] };
+const ALIAS: Record<string, string[]> = { "Osvaldo Castillo": ["Ozzy Castillo"], "Abbie Reeves": ["Abbie J Contreras"], "Alex Huerta": ["Raul Alejandro Huerta"], "Stephen Barnhill Jr.": ["Stephen Barnhill"] };
 const lk = (s: string) => norm(s).toLowerCase().replace(/[^a-z]/g, "");
 export const sameAgent = (name: string, agent: string) => { const n = lk(name); return n === lk(agent) || (ALIAS[agent] ?? []).some((x) => lk(x) === n); };
 /** Value for this agent from a by-name object, or undefined. */

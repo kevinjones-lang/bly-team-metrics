@@ -157,3 +157,11 @@ img, svg { max-width: 100%; }
 @media (max-width: 640px) { .fl-step { grid-template-columns: 1fr 70px; } .fl-track { grid-column: 1 / -1; order: 3; } }
 .fl-notes { margin: 0; padding-left: 18px; line-height: 1.55; font-size: 14px; } .fl-notes li { margin-bottom: 6px; }
 .fl-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; } .fl-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; }
+/* Zillow */
+.zl-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; } @media (max-width: 800px) { .zl-charts { grid-template-columns: 1fr; } }
+.zl-chart { margin: 0; } .zl-chart figcaption { font-size: 17px; margin-bottom: 4px; }
+.zl-coachgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.zl-coach { background: #fff; border: 1px solid #D6D0C2; border-radius: 6px; padding: 12px 14px; }
+.zl-coach h3 { margin: 0 0 8px; font-size: 16px; } .zl-coach h3 span { display: block; font-family: Inter, sans-serif; font-size: 12px; color: #6B6B6B; font-weight: 400; }
+.zl-flag { border-left: 3px solid #C0A062; background: #F3F1EB; padding: 6px 9px; margin: 5px 0; font-size: 13px; border-radius: 3px; }
+.zl-flag.ok { border-color: #00519B; }
