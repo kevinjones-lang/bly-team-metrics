@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "gen": "node scripts/gen-dashboard.mjs",
+    "gen": "node scripts/gen-dashboard.mjs && node scripts/gen-main.mjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
