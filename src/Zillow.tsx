@@ -95,7 +95,7 @@ export default function Zillow({ data }: { data?: any }) {
       {seg}
       <section className="section"><h2 className="serif">Agent funnel, {winL}</h2>
         {A[win] ? <Funnel steps={[["Buyer connections", s.leads_received_buyer_connections], ["Appointments", s.appointments], ["Met with", s.meetings], ["Showings", s.showings], ["Offers", s.offers], ["Pending + closed", s.pending_plus_closed]]} /> : <p className="caption">— No rows for this agent in this window.</p>}
-        <p className="caption">Pickups {num(s.pickups)} · pickup rate {pc(s.pickup_rate)} · raw CVR {pc(s.raw_cvr)} · CSAT {num(s.csat)} · predicted CVR {pc(s.predicted_cvr)}. Blank cells in Zillow's sheet show as —.</p></section>
+        <p className="caption">Pickups {num(s.pickups)} · pickup rate {pc(s.pickup_rate)} · raw CVR {pc(s.raw_cvr)} · CSAT {num(s.csat)} · predicted CVR {pc(s.predicted_cvr)}. Blank count cells in Zillow's sheet mean 0; blank rates show —.</p></section>
       <section className="section"><h2 className="serif">ZHL funnel, last 90 days</h2>
         <Funnel steps={[["Preferred buyer connections", z.preferred_buyer_connections], ["Met with", z.met_with_connections], ["ZHL transfers", z.zhl_transfers], ["Pre-approvals", z.preapprovals], ["Locks", z.locks], ["Funded", z.funded]]} />
         <p className="caption">Transfer rate {pc(z.transfer_rate)} · pre-approval rating {z.preapproval_rating ?? "—"} · PA transactions {num(z.pa_transactions)}.</p></section>
@@ -123,7 +123,7 @@ export default function Zillow({ data }: { data?: any }) {
       <p className="caption">Zillow counts connections; FUB counts lead records by source and creation date. The definitions differ, so these are shown side by side, not reconciled.</p></section>
     <section className="section"><h2 className="serif">Team monthly, 2025 vs 2026</h2><div className="zl-charts"><MonthlyChart mt={data.monthly_team} k="PA Transactions" title="PA transactions" /><MonthlyChart mt={data.monthly_team} k="ZHL Funded Loans" title="ZHL funded loans" /></div>
       <p className="caption">Zillow Premier Agent transactions and Zillow Home Loans funded loans, from the sheet's Dashboard tab. Team closings 2025: {num(cl.total_2025)}; 2026 column: {num(cl["2026"])}.</p></section>
-    <section className="section"><h2 className="serif">Agent funnels</h2>{seg}<p className="caption">{winL}. Tap a header to sort. Blank cells in Zillow's sheet show as —.</p><AgentTable rows={agents} win={win} />
+    <section className="section"><h2 className="serif">Agent funnels</h2>{seg}<p className="caption">{winL}. Tap a header to sort. Blank count cells in Zillow's sheet mean 0; blank rates show —.</p><AgentTable rows={agents} win={win} />
       <p className="caption">Team {winL}: {num((win === "l40d" ? T4 : T6)["Buyer Connections"])} connections → {num((win === "l40d" ? T4 : T6).Appointments)} appointments → {num((win === "l40d" ? T4 : T6).Meetings)} met with → {num((win === "l40d" ? T4 : T6).Offers)} offers → {num((win === "l40d" ? T4 : T6)["Buyer Pending + Closed"])} pending + closed.</p></section>
     <section className="section"><h2 className="serif">ZHL funnel, last 90 days</h2>
       <Funnel steps={[["Preferred buyer connections", TZ["Preferred Buyer Connections"]], ["Eligible met-with", TZ["Eligible Met-with Connections ZHL"]], ["ZHL transfers", TZ["ZHL Total Transfers"]], ["Connected with LO", TZ["Connected with LO"]], ["Credit pulls", TZ["Credit Pulls"]], ["Pre-approvals", TZ["ZHL Pre-Approvals"]]]} />
