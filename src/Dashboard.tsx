@@ -339,7 +339,6 @@ export default function Dashboard() {
             { title: "Conversion date is estimated", detail: `FUB does not date tags. Used: first ISA-created appointment (${ISA.how["first ISA appointment"] || 0}), else last ISA call this year (${ISA.how["last ISA call"] || 0}), else lead created (${ISA.how["lead created"] || 0}).` },
             { title: "Routed to ISA", detail: "Lead currently assigned to an ISA user, or its first outbound call was made by one. FUB has no reassignment history in the API." },
             { title: "Appointments", detail: "Set = FUB appointments created by the ISA with a lead invited. Held = start time passed and an outcome other than no-show logged." },
-            { title: "Ralph", detail: "Former ISA, removed from all ISA views and totals. His converted leads are not reattributed; their lead sources stay as they are." },
             { title: "AI dialer", detail: "Jesse Jones is the Fello AI dialer. Excluded from human ISA totals, the scorecard, zero-activity alerts and per-person speed to lead. FELIX AI HANDOFF is reported in its own section." },
             { title: "Not yet counted", detail: "ISA_TRANSFER_SUCCESSFUL, ZHL Transferred and Zillow Live Transfer are listed but not credited to anyone." },
           ]} />
