@@ -170,8 +170,8 @@ export default function Dashboard() {
   return gate(
     <Page title="The Bly Team Metrics" width="full"
       summary={`Built to multiply. Production, leads, activity, attribution and P&L from Follow Up Boss, Sisu, the eXp report and Tax In-House. Snapshot built ${D.generated} (America/Chicago).`}>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, padding: "20px 24px", background: th.kind === "dark" ? th.text.primary : th.bg.base, borderRadius: th.radius.lg, border: `1px solid ${th.border.default}` }}>
-        <img src={LOGO} alt="Bly Team, eXp Realty" style={{ height: 44, width: "auto", maxWidth: "100%", objectFit: "contain" }} />
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "14px 16px", background: th.kind === "dark" ? th.text.primary : th.bg.base, borderRadius: th.radius.lg, border: `1px solid ${th.border.default}` }}>
+        <img src={LOGO} alt="Bly Team, eXp Realty" style={{ height: 40, width: "auto", maxWidth: "100%", objectFit: "contain" }} />
       </div>
       <Segmented options={TABS} value={tab} onChange={pickTab} />
       <Section heading="Filters">

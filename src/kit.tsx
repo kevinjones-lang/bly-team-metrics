@@ -1,5 +1,5 @@
 // Branded drop-in for the dashboard's component kit (The Bly Team brand).
-import { Fragment, createContext, useContext, useMemo, useState } from "react";
+import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 export { Fragment, useMemo, useState };
 
@@ -46,7 +46,7 @@ export function Section(p: { heading?: string; caption?: string; children?: Reac
 }
 export const Text = (p: { children?: ReactNode }) => <p className="text">{p.children}</p>;
 export function Grid(p: { columns?: number; plain?: boolean; children?: ReactNode }) {
-  return <div className={"grid" + (p.plain ? " plain" : "")} style={{ ["--cols" as any]: p.columns || 2 }}>{p.children}</div>;
+  return <div className={"grid" + (p.plain ? " plain" : "")} style={{ ["--cols" as any]: p.columns || 2, ["--cols2" as any]: Math.min(2, p.columns || 2) }}>{p.children}</div>;
 }
 export function Segmented(p: { options: any[]; value: string; onChange: (v: any) => void }) {
   return (<div className="seg" role="tablist">{p.options.map((o: any) => { const v = typeof o === "string" ? o : o.value; const l = typeof o === "string" ? o : o.label;
@@ -88,7 +88,7 @@ export function Legend(p: { names: string[] }) {
 function useTip() {
   const [tip, setTip] = useState<{ x: number; y: number; lines: string[] } | null>(null);
   const el = tip ? <div className="tip" style={{ left: tip.x, top: tip.y }}>{tip.lines.map((l, i) => <div key={i} className={i === 0 ? "tiph" : ""}>{l}</div>)}</div> : null;
-  const on = (lines: string[]) => (e: React.MouseEvent) => { const r = (e.currentTarget as Element).closest(".chart")!.getBoundingClientRect(); setTip({ x: e.clientX - r.left + 12, y: e.clientY - r.top + 12, lines }); };
+  const on = (lines: string[]) => (e: React.MouseEvent) => { const r = (e.currentTarget as Element).closest(".chart")!.getBoundingClientRect(); const x = e.clientX - r.left; setTip({ x: Math.max(0, Math.min(x + 12, r.width - 200)), y: e.clientY - r.top + 12, lines }); };
   return { el, on, off: () => setTip(null) };
 }
 export function Bars(p: { bars: { label: string; value: number; display: string; meta?: string }[]; emphasis?: any }) {
@@ -102,15 +102,19 @@ export function Bars(p: { bars: { label: string; value: number; display: string;
 }
 export function ColumnSeries(p: { labels: string[]; series: { name: string; values: number[] }[]; format?: (v: number) => string }) {
   const t = useTip(); const fmt = p.format || ((v: number) => Math.round(v).toLocaleString("en-US"));
-  const W = 900, H = 260, L = 56, B = 28, T = 10; const mx = Math.max(1, ...p.series.flatMap((s) => s.values));
+  const ref = useRef<HTMLDivElement>(null); const [cw, setCw] = useState(900);
+  useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver((es) => { const w = Math.round(es[0].contentRect.width); if (w > 0) setCw(w); }); ro.observe(el); return () => ro.disconnect(); }, []);
+  // chart is drawn at its container's pixel width so labels stay legible on phones
+  const W = Math.max(280, cw), H = W < 640 ? 220 : 260, L = W < 640 ? 44 : 56, B = 28, T = 10;
+  const every = Math.max(1, Math.ceil(p.labels.length / Math.max(2, Math.floor((W - L) / 44)))); const mx = Math.max(1, ...p.series.flatMap((s) => s.values));
   const gw = (W - L - 10) / p.labels.length, bw = (gw * 0.8) / p.series.length;
   const y = (v: number) => T + (1 - v / mx) * (H - T - B);
-  return (<div className="chart"><Legend names={p.series.map((s) => s.name)} />
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%">
-      {[0, 0.5, 1].map((f) => <g key={f}><line x1={L} x2={W - 10} y1={y(mx * f)} y2={y(mx * f)} stroke={THEME.border.subtle} /><text x={L - 6} y={y(mx * f) + 4} textAnchor="end" fontSize={11} fill={THEME.text.tertiary}>{fmt(mx * f)}</text></g>)}
+  return (<div className="chart" ref={ref}><Legend names={p.series.map((s) => s.name)} />
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H}>
+      {[0, 0.5, 1].map((f) => <g key={f}><line x1={L} x2={W - 10} y1={y(mx * f)} y2={y(mx * f)} stroke={THEME.border.subtle} /><text x={L - 6} y={y(mx * f) + 4} textAnchor="end" fontSize={12} fill={THEME.text.tertiary}>{fmt(mx * f)}</text></g>)}
       {p.labels.map((lb, k) => (<g key={k} onMouseMove={t.on([lb, ...p.series.map((s) => `${s.name}: ${fmt(s.values[k] || 0)}`)])} onMouseLeave={t.off}>
         <rect x={L + gw * k} y={T} width={gw} height={H - T - B} fill="transparent" className="hov" />
         {p.series.map((s, j) => <rect key={j} x={L + gw * k + gw * 0.1 + bw * j} y={y(s.values[k] || 0)} width={bw - 1} height={Math.max(0, y(0) - y(s.values[k] || 0))} fill={THEME.dataviz.categorical[j] || THEME.dataviz.other} />)}
-        <text x={L + gw * k + gw / 2} y={H - 8} textAnchor="middle" fontSize={11} fill={THEME.text.tertiary}>{lb}</text></g>))}
+        <text x={L + gw * k + gw / 2} y={H - 8} textAnchor="middle" fontSize={12} fill={THEME.text.tertiary}>{k % every === 0 || k === p.labels.length - 1 ? lb : ""}</text></g>))}
     </svg>{t.el}</div>);
 }
