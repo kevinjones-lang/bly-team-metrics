@@ -32,6 +32,7 @@
 .myt-tags { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .myt-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink); background: var(--ivory); }
 .myt-tag.t { border-color: #00519B; color: #00519B; } .myt-tag.s { border-color: #C0A062; color: #6b5626; } .myt-tag.b { border-color: #4a6b3a; color: #2f4d24; }
+.myt-tag.r { border-color: #7a4f8b; color: #5a3768; }
 .myt-tag.c { border-color: #a3332b; color: #a3332b; background: #fff; }
 .myt-conf { min-width: 760px; } .myt-conf th.yr { white-space: normal; max-width: 360px; }
 .myt-spark { margin: 0; width: 100%; max-width: 240px; flex: 0 0 auto; }

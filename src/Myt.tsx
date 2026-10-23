@@ -95,7 +95,7 @@ function MetricTable({ m, E, D, rep, ry }: { m: Metric; E: any; D: any; rep: num
         <div>
           <h3 className="serif">{m.label}</h3>
           <p className="myt-src">{missing ? <><b>Missing source.</b> {m.why || "No data for this scope."}</> : m.src}</p>
-          {m.tag ? <p className="myt-tags"><span className={"myt-tag " + (m.tag === "Tracker" ? "t" : m.tag === "Bly sheet" ? "s" : "b")}>Source: {m.tag}</span>{m.conflict ? <span className="myt-tag c">Sheet differs &gt;5% (see list above)</span> : null}</p> : null}
+          {m.tag ? <p className="myt-tags"><span className={"myt-tag " + (m.tag === "Tracker" ? "t" : m.tag === "Bly sheet" ? "s" : m.tag === "Recruiting sheet" ? "r" : "b")}>Source: {m.tag}</span>{m.conflict ? <span className="myt-tag c">Sheet differs &gt;5% (see list above)</span> : null}</p> : null}
         </div>
         {!missing ? <Spark rows={rows.map((r) => r.months)} years={years} cur={ry} /> : null}
       </header>
@@ -162,7 +162,7 @@ export default function Myt({ data, lrOn = true }: { data: any; lrOn?: boolean }
     <div className="myt">
       <div className="section myt-controls">
         <h2 className="serif">Multi-Year Trends</h2>
-        <p className="caption">One table per metric, a row for each year since {D.years[0]} (as far back as Sisu goes), Jan–Dec, the year total, and MOM, YOY and YTD change for the report month. A dash (—) means no source covers that month. It is not a zero. Leases and referrals follow the global toggle in Filters. Each table is tagged with its source: Tracker (Sisu, FUB, eXp file, P&amp;L), Bly sheet (Bly Team Metrics Tracker, snapshot {D.asof?.sheet}), or both. Tracker numbers win wherever they cover the same month; the sheet fills the rest.</p>
+        <p className="caption">One table per metric, a row for each year since {D.years[0]} (as far back as Sisu goes), Jan–Dec, the year total, and MOM, YOY and YTD change for the report month. A dash (—) means no source covers that month. It is not a zero. Leases and referrals follow the global toggle in Filters. Each table is tagged with its source: Tracker (Sisu, FUB, eXp file, P&amp;L), Recruiting sheet (By The Numbers, snapshot {D.asof?.recruiting}), Bly sheet (Bly Team Metrics Tracker, snapshot {D.asof?.sheet}), or a combination. Tracker numbers win wherever they cover the same month; for recruiting, the recruiting sheet wins over the Bly sheet; the Bly sheet fills the rest. Recruiting tables show counts only.</p>
         <div className="myt-ctl">
           <label>Scope<select value={scope} onChange={(e) => setScope(e.target.value)}>{scopes.map((s) => <option key={s} value={s}>{s === "team" ? "The Bly Team (company)" : s}</option>)}</select></label>
           <label>Report month<select value={ym} onChange={(e) => setYm(e.target.value)}>{opts.map((o) => <option key={o} value={o}>{MONL[+o.slice(5) - 1]} {o.slice(0, 4)}</option>)}</select></label>
