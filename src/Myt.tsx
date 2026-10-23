@@ -1,10 +1,10 @@
-// Multi-Year Trends tab (Keller Williams MYT-style): one year x month table per metric, report-month and scope selectors, print layout.
-// Data: payload.myt from /workspace/metrics/myt_build.py. Null = no source coverage, shown as an em dash (never zero-filled).
+// Multi-Year Trends tab: one year x month table per metric, report-month and scope selectors, print layout.
+// Data: payload.myt from myt_build.py (tracker metrics first, Bly Team Metrics Tracker sheet fills gaps). Null = no source coverage, shown as an em dash (never zero-filled).
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import "./myt.css";
 
-type Metric = { k: string; label: string; kw: string; src: string; fmt: string; team?: number; missing?: number; why?: string; agg?: string; num?: string; den?: string; fixed?: string; group: string };
+type Metric = { k: string; label: string; tag?: string; conflict?: number; src: string; fmt: string; team?: number; missing?: number; why?: string; agg?: string; num?: string; den?: string; fixed?: string; group: string };
 type Grid = (number | null)[][];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -30,8 +30,11 @@ function engine(D: any, scope: string, v: string) {
   const aggBase = (m: Metric | undefined, k: string, yi: number, months: number[], fixed?: string, mode?: string): number | null => {
     const g = raw(k, fixed); if (!g) return null;
     const xs = months.map((i) => g[yi][i]);
-    if (k === "agents") {
-      if (mode === "total" && months.length === 12) return xs.some((x) => x !== null) ? D.agents_tot[String(D.years[yi])] ?? null : null;
+    if (mode === "total" && months.length === 12 && isTeam && !xs.some((x) => x !== null)) {
+      const a = (D.ann || {})[k]; const t = a ? a[String(D.years[yi])] : undefined; if (t !== undefined && t !== null) return t;  // annual-only source year
+    }
+    if (k === "agents" || k === "active") {
+      if (k === "agents" && mode === "total" && months.length === 12) return xs.some((x) => x !== null) ? D.agents_tot[String(D.years[yi])] ?? null : null;
       const v2 = xs.filter((x): x is number => x !== null); return v2.length ? v2.reduce((a, b) => a + b, 0) / v2.length : null;
     }
     if (m && m.agg === "last") { for (let i = months.length - 1; i >= 0; i--) if (xs[i] !== null) return xs[i]; return null; }
@@ -85,13 +88,14 @@ function MetricTable({ m, E, D, rep, ry }: { m: Metric; E: any; D: any; rep: num
     const yt = missing ? null : E.val(m, yi(y), ytd), lyt = yi(y - 1) >= 0 && !missing ? E.val(m, yi(y - 1), ytd) : null;
     return { y, months, tot, mom: pct(cm, pm), yoy: pct(cm, ly), ytdp: pct(yt, lyt) };
   });
-  const isAvg = m.num || m.k === "agents" || m.agg === "last";
+  const isAvg = m.num || m.k === "agents" || m.k === "active" || m.agg === "last";
   return (
     <section className={"myt-metric" + (missing ? " is-missing" : "")}>
       <header className="myt-mh">
         <div>
           <h3 className="serif">{m.label}</h3>
-          <p className="myt-src">{missing ? <><b>Missing source.</b> {m.why || "No data for this scope."}</> : m.src}{m.kw && m.kw !== m.label ? <span className="myt-kw"> · KW: {m.kw}</span> : null}</p>
+          <p className="myt-src">{missing ? <><b>Missing source.</b> {m.why || "No data for this scope."}</> : m.src}</p>
+          {m.tag ? <p className="myt-tags"><span className={"myt-tag " + (m.tag === "Tracker" ? "t" : m.tag === "Bly sheet" ? "s" : "b")}>Source: {m.tag}</span>{m.conflict ? <span className="myt-tag c">Sheet differs &gt;5% (see list above)</span> : null}</p> : null}
         </div>
         {!missing ? <Spark rows={rows.map((r) => r.months)} years={years} cur={ry} /> : null}
       </header>
@@ -152,13 +156,13 @@ export default function Myt({ data, lrOn = true }: { data: any; lrOn?: boolean }
   const scopes = ["team", ...Object.keys(D.scopes).filter((s) => s !== "team")];
   const groups = grp === "all" ? groupsAll : [grp];
   const doPrint = () => { setPrinting(true); document.body.classList.add("myt-printing"); setTimeout(() => window.print(), 60); };
-  const missing = D.metrics.filter((m: Metric) => m.missing);
+  const conf: any[] = D.conflicts || [], notes: string[] = D.sheet_notes || [];
   const v = lrOn ? "all" : "x";
   return (
     <div className="myt">
       <div className="section myt-controls">
         <h2 className="serif">Multi-Year Trends</h2>
-        <p className="caption">Keller Williams MYT layout: one table per metric, a row for each year since {D.years[0]} (as far back as Sisu goes), Jan–Dec, the year total, and MOM, YOY and YTD change for the report month. A dash (—) means no source covers that month. It is not a zero. Leases and referrals follow the global toggle in Filters.</p>
+        <p className="caption">One table per metric, a row for each year since {D.years[0]} (as far back as Sisu goes), Jan–Dec, the year total, and MOM, YOY and YTD change for the report month. A dash (—) means no source covers that month. It is not a zero. Leases and referrals follow the global toggle in Filters. Each table is tagged with its source: Tracker (Sisu, FUB, eXp file, P&amp;L), Bly sheet (Bly Team Metrics Tracker, snapshot {D.asof?.sheet}), or both. Tracker numbers win wherever they cover the same month; the sheet fills the rest.</p>
         <div className="myt-ctl">
           <label>Scope<select value={scope} onChange={(e) => setScope(e.target.value)}>{scopes.map((s) => <option key={s} value={s}>{s === "team" ? "The Bly Team (company)" : s}</option>)}</select></label>
           <label>Report month<select value={ym} onChange={(e) => setYm(e.target.value)}>{opts.map((o) => <option key={o} value={o}>{MONL[+o.slice(5) - 1]} {o.slice(0, 4)}</option>)}</select></label>
@@ -166,8 +170,10 @@ export default function Myt({ data, lrOn = true }: { data: any; lrOn?: boolean }
           <button className="primary myt-print-btn" onClick={doPrint}>Print / PDF</button>
         </div>
         {scope !== "team" ? <p className="caption">Agent view shows agent-level Sisu metrics and the agent's eXp team share. Team-only metrics (agent count, recruiting, P&amp;L, FUB totals, ISA) appear under The Bly Team.</p> : null}
-        <details className="myt-missing"><summary>Metrics with no source ({missing.length})</summary>
-          <ul>{missing.map((m: Metric) => <li key={m.k}><b>{m.kw}</b>: {m.why}</li>)}</ul></details>
+        {conf.length || notes.length ? <details className="myt-missing"><summary>Tracker vs Bly sheet: {conf.length} differences over 5% · sheet corrections applied ({notes.length})</summary>
+          <ul>{notes.map((n: string, i: number) => <li key={"n" + i}>{n}</li>)}</ul>
+          <div className="myt-scroll"><table className="myt-table myt-conf"><thead><tr><th className="yr">Metric</th><th>Year</th><th>Months</th><th>Tracker (used)</th><th>Bly sheet</th><th>Diff</th></tr></thead>
+            <tbody>{conf.map((c: any, i: number) => { const f = /Volume|GCI|Dollar|Income|Profit|Expenses/.test(c.metric) ? "$" : "n"; return <tr key={i}><th className="yr">{c.metric}</th><td>{c.year}</td><td>{c.months}</td><td>{fmt(c.tracker, f)}</td><td>{fmt(c.sheet, f)}</td><td>{(c.diff_pct > 0 ? "+" : "") + c.diff_pct}%</td></tr>; })}</tbody></table></div></details> : null}
       </div>
       <Report D={D} scope={scope} v={v} rep={rep} ry={ry} groups={groups} />
       {printing ? createPortal(<div className="myt-print"><Report D={D} scope={scope} v={v} rep={rep} ry={ry} groups={groups} /></div>, document.body) : null}
