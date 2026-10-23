@@ -25,6 +25,24 @@ function WaitTrend({ rows }: { rows: any[] }) {
   </svg>;
 }
 
+const PER: [string, string][] = [["last30", "Last 30 days"], ["last60", "Last 60 days"], ["last90", "Last 90 days"], ["last180", "Last 180 days"], ["ytd", "Year to date"], ["last_month_2026_09", "Sep"], ["this_month_2026_10_01_to_23", "Oct 1–23"]];
+function MonthlyBars({ rows }: { rows: any[] }) {
+  if (!rows.length) return <p className="caption">—</p>;
+  const W = 640, H = 220, P = 40, bw = (W - 2 * P) / rows.length;
+  const mxA = Math.max(1, ...rows.flatMap((r) => [r.calls ?? 0, r.sms ?? 0])), mxH = Math.max(1, ...rows.map((r) => r.fub_handoffs ?? 0));
+  const Y = (v: number, m: number) => H - P - (v * (H - 2 * P)) / m;
+  const hp = rows.map((r, i) => (ok(r.fub_handoffs) ? `${P + i * bw + bw / 2},${Y(r.fub_handoffs, mxH)}` : null)).filter(Boolean).join(" ");
+  return <><svg className="ft-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Monthly Felix calls, texts and handoffs">
+    <line x1={P} x2={W - P} y1={H - P} y2={H - P} stroke="#D6D0C2" />
+    {rows.map((r, i) => { const x = P + i * bw; return <g key={r.month}>
+      {ok(r.calls) ? <rect x={x + bw * 0.14} y={Y(r.calls, mxA)} width={bw * 0.32} height={H - P - Y(r.calls, mxA)} fill="#00519B" /> : null}
+      {ok(r.sms) ? <rect x={x + bw * 0.5} y={Y(r.sms, mxA)} width={bw * 0.32} height={H - P - Y(r.sms, mxA)} fill="#9DB8D6" /> : null}
+      <text x={x + bw / 2} y={H - 14} textAnchor="middle" fontSize="12" fill="#6B6B6B">{mlab(r.month)}{r.partial ? "*" : ""}</text></g>; })}
+    <polyline points={hp} fill="none" stroke="#C0A062" strokeWidth="2.5" />
+    {rows.map((r, i) => ok(r.fub_handoffs) ? <g key={"h" + i}><circle cx={P + i * bw + bw / 2} cy={Y(r.fub_handoffs, mxH)} r="4" fill="#C0A062" /><text x={P + i * bw + bw / 2} y={Y(r.fub_handoffs, mxH) - 9} textAnchor="middle" fontSize="12" fill="#12151C">{r.fub_handoffs}</text></g> : null)}
+  </svg><div className="rc-legend fl-legend"><span><i style={{ background: "#00519B" }} /> AI calls</span><span><i style={{ background: "#9DB8D6" }} /> AI texts</span><span><i style={{ background: "#C0A062" }} /> Handoffs (FUB, own scale)</span><span>* to date</span></div></>;
+}
+
 export default function Fello({ data }: { data?: any }) {
   const { agent } = useAgent();
   if (!data) return <div className="gatecard"><h1 className="serif">Fello</h1><p className="rule" /><p>— Not in this snapshot yet. It loads with the next pipeline run.</p></div>;
@@ -48,7 +66,19 @@ export default function Fello({ data }: { data?: any }) {
         <Card l="AI calls, YTD" v={num(Y.calls)} h={`Last 30 days ${num(L.calls)}`} /><Card l="AI texts, YTD" v={num(Y.sms)} h={`Last 30 days ${num(L.sms)}`} />
         <Card l="Response rate, YTD" v={`${pc(Y.call_resp_pct)} / ${pc(Y.sms_resp_pct)}`} h="Calls / texts" /><Card l="Conversations" v={num(F.conversations)} />
         <Card l="Handoffs YTD" v={num(U.handoffs)} h={`Call ${num(U.call)} · Text ${num(U.text)}`} /><Card l="Median wait for a human call" v={mins(U.median_min)} h="After handoff, YTD" />
-        <Card l="Human call within 1 hour" v={pc(U.pct_1h)} h="Share of handoffs" /><Card l={`Closed ${data.year ?? ""}`} v={num(S.closed)} h={`${usd(S.closed_gci)} GCI · ${num(S.under_contract)} under contract (Sisu)`} /></div>
+        <Card l="Human call within 1 hour" v={pc(U.pct_1h)} h="Share of handoffs" /><Card l="Handoffs never called" v={num(U.never_called)} h="No human call yet, YTD (FUB)" /><Card l={`Closed ${data.year ?? ""}`} v={num(S.closed)} h={`${usd(S.closed_gci)} GCI · ${num(S.under_contract)} under contract (Sisu)`} /></div>
+      <section className="section"><h2 className="serif">Felix by period</h2>
+        <div className="tablewrap"><table><thead><tr><th>Period</th><th className="r">AI calls</th><th className="r">AI texts</th><th className="r">Handoffs</th><th className="r">Call response</th><th className="r">Text response</th></tr></thead>
+          <tbody>{PER.map(([k, l]) => { const p = (F.periods ?? {})[k] ?? {}; return <tr key={k}><td>{l}</td><td className="r">{num(p.calls)}</td><td className="r">{num(p.sms)}</td><td className="r">{num(p.handoffs)}</td>
+            <td className="r">{pc(p.call_resp_pct)}{ok(p.call_resp_n) ? ` · ${num(p.call_resp_n)}` : ""}</td><td className="r">{pc(p.sms_resp_pct)}{ok(p.sms_resp_n) ? ` · ${num(p.sms_resp_n)}` : ""}</td></tr>; })}</tbody></table></div>
+        <p className="caption">Fello Reports, read from the Fello UI. Response = rate · leads responding.</p></section>
+      <section className="section"><h2 className="serif">Monthly calls, texts and handoffs</h2><MonthlyBars rows={M} /></section>
+      <section className="section"><h2 className="serif">Nurture and Living Database, last 30 days</h2>
+        <div className="fa-cards ft-4">
+          <Card l="Nurture engaged" v={num(F.nurture?.engaged)} h={`${pc(F.nurture?.engaged_pct)} of ${num(F.nurture?.engaged_of)}`} /><Card l="Nurture emails sent" v={num(F.nurture?.sent)} h={`${num(F.nurture?.opens)} opens · ${num(F.nurture?.clicks)} clicks`} />
+          <Card l="Dashboard views / forms" v={`${num(F.nurture?.dashboard_views)} / ${num(F.nurture?.form_submissions)}`} h={`Nurture enrolled ${num(F.nurture?.enrolled)}`} /><Card l="Influenced pipeline" v={num(F.nurture?.influenced_pipeline)} h="Fello's count" />
+          <Card l="Living Database contacts" v={num(F.living?.total_contacts)} h={`${num(F.living?.changes)} changes`} /><Card l="Moves" v={num(F.living?.moves)} />
+          <Card l="Listed / sold" v={`${num(F.living?.listed)} / ${num(F.living?.sold)}`} /><Card l="Purchased" v={num(F.living?.purchased)} /></div></section>
       <section className="section"><h2 className="serif">From Felix's first touch to closing</h2>
         <div className="fl-funnel">{steps.map(([l, v, h], i) => <div className="fl-step" key={l}>
           <div className="fl-l"><b>{l}</b><span>{h}</span></div>
@@ -62,6 +92,12 @@ export default function Fello({ data }: { data?: any }) {
           <tbody>{M.map((m) => <tr key={m.month}><td>{mlab(m.month)} {m.month.slice(0, 4)}{m.partial ? " (to date)" : ""}</td><td className="r">{num(m.calls)}</td><td className="r">{num(m.sms)}</td><td className="r">{num(m.fub_handoffs)}</td>
             <td className="r">{num(m.call)} / {num(m.text)}</td><td className="r">{num(m.human_called)}</td><td className="r">{mins(m.median_min)}</td><td className="r">{pc(m.pct_1h)}</td><td className="r">{num(m.appts)}</td><td className="r">{num(m.deals)}</td></tr>)}</tbody></table></div>
         <p className="caption">Calls and texts: Fello. Handoffs and later steps: FUB. {F.reconciliation_note ?? ""}</p></section>
+      <section className="section"><h2 className="serif">Data notes</h2><ul className="fl-notes">
+        <li>Felix figures: {F.source ?? "—"}, as of {asof(F.as_of)}. Fello's public API has no activity endpoints, so numbers are read from the Fello UI.</li>
+        <li>Handoff follow-up (human call, wait, appointment, FUB deals): FUB Manager, "Felix AI Handoff" events, as of {asof(U.as_of)} CT.</li>
+        <li>Under contract, closings, volume and GCI: Sisu, live from the daily tracker build.</li>
+        {F.reconciliation_note ? <li>{F.reconciliation_note}</li> : null}
+        <li>Not available (shown —): weekly Felix activity, per-campaign results, per-agent handoff credit, conversation counts.</li></ul></section>
       <section className="section"><h2 className="serif">Weekly, campaigns, conversations</h2>
         <table><tbody><tr><td>Weekly Felix numbers</td><td className="r">{F.weekly ? "see Fello" : "—"}</td></tr><tr><td>Handoffs by campaign</td><td className="r">{F.per_campaign ? Object.entries(F.per_campaign).map(([k, v]) => `${k} ${num(v)}`).join(" · ") : "—"}</td></tr>
           <tr><td>Conversations</td><td className="r">{num(F.conversations)}</td></tr><tr><td>Per-agent handoffs</td><td className="r">{F.per_agent_handoffs ? "available" : "—"}</td></tr></tbody></table>
