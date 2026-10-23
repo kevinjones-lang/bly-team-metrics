@@ -1,6 +1,7 @@
 // Main Team screen: Snapshot / Pacing / CEO (Sisu-style layouts in The Bly Team brand). Hand-written; contains no data.
 import { useMemo, useState } from "react";
 import "./mainscreen.css";
+import { usePersist } from "./agent";
 
 const C = { charcoal: "#12151C", ink: "#1A1A1A", ivory: "#F3F1EB", blue: "#00519B", gold: "#C0A062", grey: "#8C8A84", line: "#D6D0C2" };
 const MN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -25,13 +26,24 @@ function perGoal(d: any, per: string, annual: number | null | undefined) {
   return { full: (annual * full) / ndy, pace: (annual * elapsed) / ndy };
 }
 const status = (val: number, g: { full: number; pace: number } | null) => (!g ? -1 : val >= g.full ? 2 : val >= g.pace ? 1 : 0);
-type P = { data: any; lrOn: boolean; tab: string; setTab: (t: string) => void };
+type P = { data: any; lrOn: boolean; tab: string; setTab: (t: string) => void; agent?: string | null };
+const lkey = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
+/** One agent's slice of main.json in the same shape as the team payload. Goals: the agent's own (if any in data), never the team goal. */
+function agentData(data: any, agent: string) {
+  const A = data.by_agent?.[agent]; if (!A) return null;
+  const key = Object.keys(data.agents || {}).find((k) => lkey(k) === lkey(agent));
+  return { ...data, series: A.series, vol: A.vol, gci: A.gci, pend: A.pend, cash: A.cash, pmon: A.pmon, conv: A.conv, goals: null, agoal: A.goal, agent, agentKey: key };
+}
 export const MAIN_TABS = [{ value: "snapshot", label: "Snapshot" }, { value: "pacing", label: "Pacing" }, { value: "ceo", label: "CEO" }, { value: "details", label: "Details" }];
 
-export default function MainScreen({ data, lrOn, tab, setTab }: P) {
-  if (!data) return <div className="mx-note">Main screen data is not in this snapshot yet. It appears after the next daily pipeline run.</div>;
+export default function MainScreen({ data: data0, lrOn, tab, setTab, agent }: P) {
+  if (!data0) return <div className="mx-note">Main screen data is not in this snapshot yet. It appears after the next daily pipeline run.</div>;
+  const data = agent ? agentData(data0, agent) : data0;
+  const bar = <div className="mx-sub" role="tablist">{MAIN_TABS.map((t) => <button key={t.value} role="tab" aria-selected={tab === t.value} className={tab === t.value ? "on" : ""} onClick={() => setTab(t.value)}>{t.label}</button>)}</div>;
+  if (!data) return <div className="mx">{bar}<div className="agentbanner"><b className="serif">{agent}</b><span>— No Sisu production recorded for this agent in this snapshot.</span></div></div>;
   return (<div className="mx">
-    <div className="mx-sub" role="tablist">{MAIN_TABS.map((t) => <button key={t.value} role="tab" aria-selected={tab === t.value} className={tab === t.value ? "on" : ""} onClick={() => setTab(t.value)}>{t.label}</button>)}</div>
+    {bar}
+    {agent && tab !== "details" ? <div className="agentbanner"><b className="serif">{agent}</b><span>Sisu units credited to this agent (co-agented deals split; team-leader share stays team-only). {data.agoal ? "Goal from the agent's own Sisu goal." : "No goal for this agent in the data, so no goal line."}</span></div> : null}
     {tab === "snapshot" ? <Snapshot d={data} v={lrOn ? "all" : "x"} /> : null}
     {tab === "pacing" ? <Pacing d={data} v={lrOn ? "all" : "x"} /> : null}
     {tab === "ceo" ? <Ceo d={data} v={lrOn ? "all" : "x"} lrOn={lrOn} /> : null}
@@ -41,7 +53,7 @@ export default function MainScreen({ data, lrOn, tab, setTab }: P) {
 
 /* ---------------- Snapshot ---------------- */
 function Snapshot({ d, v }: { d: any; v: string }) {
-  const [mode, setMode] = useState<"m" | "a">("m");
+  const [mode, setMode] = usePersist<"m" | "a">("sm", "m");
   const Y = d.years[2], m = d.month - 1, S = d.series[v];
   const yt = (k: string, s: "b" | "s") => sum(S[k][Y][s].slice(0, m + 1));
   const mt = (k: string) => S[k][Y].b[m] + S[k][Y].s[m];
@@ -60,11 +72,11 @@ function Snapshot({ d, v }: { d: any; v: string }) {
       <div className="mx-kpi"><div className="mx-kpi-t">Units Pending</div><div className="mx-kpi-v serif">{n0(pb + ps)}</div>
         <div className="mx-kpi-row"><span>Buyers</span><b>{n0(pb)}</b></div><div className="mx-kpi-row"><span>Sellers</span><b>{n0(ps)}</b></div><div className="mx-kpi-row muted"><span>Sisu, open now</span><b /></div></div></div>
     <div className="mx-bar"><div className="mx-seg">{[["m", "Monthly"], ["a", "Annually"]].map(([k, l]) => <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => setMode(k as any)}>{l}</button>)}</div>
-      <span className="mx-hint">{mode === "a" ? "Running total through each month" : "Units per month"} · dotted = {MN[m]} projected from month to date{d.goals ? ` · gold dashed = ${d.goals.year} monthly goal` : " · Goals not set"}</span></div>
+      <span className="mx-hint">{mode === "a" ? "Running total through each month" : "Units per month"} · dotted = {MN[m]} projected from month to date{d.goals ? ` · gold dashed = ${d.goals.year} monthly goal` : d.agoal ? " · gold dashed = agent goal" : d.agent ? " · No agent goal in data" : " · Goals not set"}</span></div>
     <div className="mx-charts">
-      {d.goals ? <><LineChart title="Closed Volume" s={tot2(d.vol[v])} d={d} cum={mode === "a"} money goal={d.goals.monthly.volume} />
-        <LineChart title="Closed GCI (gross)" s={tot2(d.gci[v])} d={d} cum={mode === "a"} money goal={d.goals.monthly.gci} /></> : null}
-      {charts.map(([t, s]) => <LineChart key={t} title={t} s={s} d={d} cum={mode === "a"} goalNote={d.goals ? `no ${d.goals.year} unit goal in plan` : undefined} />)}</div>
+      {d.goals || d.agent ? <><LineChart title="Closed Volume" s={tot2(d.vol[v])} d={d} cum={mode === "a"} money goal={d.goals ? d.goals.monthly.volume : d.agoal?.volume ? d.agoal.volume / 12 : null} goalNote={d.agent ? "no agent goal in data" : undefined} />
+        <LineChart title="Closed GCI (gross)" s={tot2(d.gci[v])} d={d} cum={mode === "a"} money goal={d.goals ? d.goals.monthly.gci : d.agoal?.gci ? d.agoal.gci / 12 : null} goalNote={d.agent ? "no agent goal in data" : undefined} /></> : null}
+      {charts.map(([t, s]) => <LineChart key={t} title={t} s={s} d={d} cum={mode === "a"} goalNote={d.goals ? `no ${d.goals.year} unit goal in plan` : d.agent ? "no agent goal in data" : undefined} />)}</div>
     <p className="mx-note">Appointments set/met in Sisu are only sparsely dated before 2026, and Sisu activity (conversations = Sisu "contacts") was barely logged from Oct 2024 to Jul 2026; those months show as gaps, not zeros.</p>
   </div>);
 }
@@ -102,7 +114,7 @@ function LineChart({ title, s, d, cum, money, goal, goalNote }: { title: string;
       <span><i style={{ background: C.blue }} />{Y2} <b>{fm(ytd(s[Y2]))}</b> <em>{yoy(Y2, Y1)}</em></span>
       <span><i style={{ background: C.gold }} />{Y1} <b>{fm(ytd(s[Y1]))}</b> <em>{yoy(Y1, Y0)}</em></span>
       <span><i style={{ background: C.grey }} />{Y0} <b>{fm(ytd(s[Y0]))}</b></span>
-      {goal ? <span><i className="dash gold" />{d.goals.year} goal <b>{fm(goal)}/mo</b></span> : <span className="muted"><i className="dash" />Goals: {goalNote || "not set"}</span>}
+      {goal ? <span><i className="dash gold" />{d.goals ? d.goals.year : "Agent"} goal <b>{fm(goal)}/mo</b></span> : <span className="muted"><i className="dash" />Goals: {goalNote || "not set"}</span>}
     </div>
     {pv !== null ? <div className="mx-proj">{MN[m]} projected: {fm(Math.round(proj as number))} (month to date {fm(s[Y2][m])})</div> : null}
   </figure>);
@@ -111,19 +123,21 @@ function LineChart({ title, s, d, cum, money, goal, goalNote }: { title: string;
 /* ---------------- Pacing (circles) ---------------- */
 const PERS = [{ value: "mtd", label: "This Month" }, { value: "lm", label: "Last Month" }, { value: "t90", label: "Last 90 Days" }, { value: "ytd", label: "Year to Date" }];
 function Pacing({ d, v }: { d: any; v: string }) {
-  const [per, setPer] = useState("mtd"); const [who, setWho] = useState("team");
+  const [per, setPer] = usePersist("pp", "mtd"); const [who0, setWho] = usePersist("pw", "team");
+  const who = d.agent ? (d.agentKey ?? "__none") : who0;
   const names = useMemo(() => Object.keys(d.agents).filter((k) => k !== "team" && k !== "Unknown").sort(), [d]);
-  const A = (d.agents[who] || d.agents.team)[v][per]; const g = (s: string, k: string) => (A[s] && A[s][k]) || 0;
+  const AZ = { b: {}, s: {} }; const A = d.agent ? (d.agents[who]?.[v]?.[per] ?? AZ) : (d.agents[who] || d.agents.team)[v][per]; const g = (s: string, k: string) => (A[s] && A[s][k]) || 0;
   const both = (k: string) => g("b", k) + g("s", k);
   const conv = (d.convA[who] || {})[per];
   const m = d.month - 1, Y = d.years[2];
-  const forecast = who === "team" && per === "mtd" ? d.pmon[v].units[m] : null;
-  const fvol = who === "team" && per === "mtd" ? d.pmon[v].vol[m] : null;
-  const G = who === "team" ? d.goals : null; const runMode = G && G.mode === "runrate";
-  const gv = perGoal(d, per, G?.annual.volume);
+  const fcOk = (who === "team" || !!d.agent) && per === "mtd";
+  const forecast = fcOk ? d.pmon[v].units[m] : null;
+  const fvol = fcOk ? d.pmon[v].vol[m] : null;
+  const G = who === "team" && !d.agent ? d.goals : null; const runMode = G && G.mode === "runrate";
+  const gv = perGoal(d, per, d.agent ? d.agoal?.volume : G?.annual.volume);
   const top: any[] = [["Closed Volume", usdK(both("vol")), "", both("vol"), gv], ["Closed Units", n0(both("closed"))],
-    ["Closed & Forecasted", forecast === null ? DASH : n0(both("closed") + forecast), forecast === null ? "This Month, whole team only" : `${n0(forecast)} pending forecast to close in ${MN[m]}`],
-    ["Closed & Forecasted Volume", fvol === null ? DASH : usdK(both("vol") + fvol), fvol === null ? "This Month, whole team only" : "", fvol === null ? null : both("vol") + fvol, fvol === null ? null : gv], ["U/C Volume", usdK(both("ucvol"))]];
+    ["Closed & Forecasted", forecast === null ? DASH : n0(both("closed") + forecast), forecast === null ? (d.agent ? "This Month only" : "This Month, whole team or selected agent") : `${n0(forecast)} pending forecast to close in ${MN[m]}`],
+    ["Closed & Forecasted Volume", fvol === null ? DASH : usdK(both("vol") + fvol), fvol === null ? (d.agent ? "This Month only" : "This Month, whole team or selected agent") : "", fvol === null ? null : both("vol") + fvol, fvol === null ? null : gv], ["U/C Volume", usdK(both("ucvol"))]];
   const ST = [["set", "Appointments Set"], ["met", "Appointments Met"], ["signed", "Signed"], ["uc", "Under Contract"], ["closed", "Closed"]];
   const row = (s: "b" | "s") => (<div className="mx-ringrow">
     <div className="mx-side">{s === "b" ? "Buyer" : "Seller"}</div>
@@ -134,15 +148,15 @@ function Pacing({ d, v }: { d: any; v: string }) {
   return (<div className="mx-stack">
     <div className="mx-filters">
       <label className="mx-field"><span>Period</span><select value={per} onChange={(e) => setPer(e.target.value)}>{PERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></label>
-      <label className="mx-field"><span>Scope</span><select value={who} onChange={(e) => setWho(e.target.value)}><option value="team">Whole team</option>{names.map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+      {d.agent ? null : <label className="mx-field"><span>Scope</span><select value={who} onChange={(e) => setWho(e.target.value)}><option value="team">Whole team</option>{names.map((n) => <option key={n} value={n}>{n}</option>)}</select></label>}
       <span className="mx-hint">{d.periods[per][0]} to {d.periods[per][1]} · Sisu dates</span>
     </div>
     {G ? <GoalBanner d={d} v={v} /> : null}
     <div className="mx-tops">{top.map(([t, val, sub, raw, gg]) => { const st = status(raw || 0, gg); const f = gg ? Math.min(1, (raw || 0) / gg.full) : 0;
       return (<div className="mx-top" key={t}><div className="mx-kpi-t">{Y} {t}</div><div className="mx-top-v serif">{val}</div>
       <div className="mx-prog"><div className="mx-prog-track" />{gg ? <><div className="mx-prog-fill" style={{ width: `${f * 100}%`, background: STC[st] }} /><div className="mx-prog-mark" style={{ left: `${Math.min(1, gg.pace / gg.full) * 100}%` }} /></> : null}</div>
-      <div className="mx-prog-l"><span>{gg ? `${STAT[st]} · ${pct(raw || 0, gg.full)}` : sub || (who === "team" ? "No 2027 goal for this" : "No agent goals")}</span><span>{gg ? `${runMode ? "2027 rate" : "Goal"} ${usdK(gg.full)}` : ""}</span></div></div>); })}</div>
-    <div className="mx-legend mx-c"><span><i style={{ background: C.grey }} />Not on pace</span><span><i style={{ background: C.gold }} />On pace</span><span><i style={{ background: C.blue }} />Goal achieved</span><span className="muted">{G ? `${runMode ? `Run-rate vs ${G.year} goal: ${Y} actuals vs the same period at the ${G.year} target rate (annual ÷ 365 per day). ` : ""}Volume has a goal; the ${G.year} plan has no unit or appointment goals, so rings show actuals only. Tick = pace for days elapsed.` : "Goals are team-level only; rings show actuals."}</span></div>
+      <div className="mx-prog-l"><span>{gg ? `${STAT[st]} · ${pct(raw || 0, gg.full)}` : sub || (who === "team" && !d.agent ? "No 2027 goal for this" : "No goal for this agent in data")}</span><span>{gg ? `${runMode ? "2027 rate" : "Goal"} ${usdK(gg.full)}` : ""}</span></div></div>); })}</div>
+    <div className="mx-legend mx-c"><span><i style={{ background: C.grey }} />Not on pace</span><span><i style={{ background: C.gold }} />On pace</span><span><i style={{ background: C.blue }} />Goal achieved</span><span className="muted">{G ? `${runMode ? `Run-rate vs ${G.year} goal: ${Y} actuals vs the same period at the ${G.year} target rate (annual ÷ 365 per day). ` : ""}Volume has a goal; the ${G.year} plan has no unit or appointment goals, so rings show actuals only. Tick = pace for days elapsed.` : d.agent ? (d.agoal ? "Volume uses the agent's own goal. Tick = pace for days elapsed." : "No per-agent goal in the data, so no goal line; rings show actuals.") : "Goals are team-level only; rings show actuals."}</span></div>
     <div className="mx-circles">
       <div className="mx-convcol"><Ring value={conv} label="Conversations" big /><div className="mx-hint">Sisu contacts logged</div></div>
       <div className="mx-rows">{row("b")}{row("s")}</div>
@@ -178,13 +192,15 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
     ["Deductions & agent income", usd(plY("cogs")), `P&L cost of goods sold, ${plM}`], ["Expenses", usd(plY("expenses")), `P&L operating expenses, ${plM}`]];
   const side = (s: "b" | "s") => { const u = ys(S.closed, s), vo = ys(d.vol[v], s), g = ys(d.gci[v], s); return { u, vo, g, asp: u ? vo / u : null, ac: u ? g / u : null }; };
   const L = side("s"), B = side("b");
+  const AG = !!d.agent; const TO = "Team-level only";
+  const cardsShown: [string, string, string][] = AG ? cards.map(([t, val, sub]) => (/^(Closed GCI|Pending GCI)/.test(t) ? [t, val, sub] : [t, TO, "eXp report / P&L have no per-agent split"]) as [string, string, string]) : cards;
   const info = (s: "b" | "s", x: any) => [["Units", n0(x.u + pend[s].units), n0(pend[s].units), n0(x.u)], ["Volume", usd(x.vo + pend[s].vol), usd(pend[s].vol), usd(x.vo)], ["GCI", usd(x.g + pend[s].gci), usd(pend[s].gci), usd(x.g)]];
   const CB = d.cash[v]; const buckets: [string, string][] = [["overdue", "Past forecast date"], ["15", "0–15 days"], ["30", "16–30 days"], ["60", "31–60 days"], ["90", "61–90 days"], ["120", "91–120 days"], ["later", "120+ days"]];
   let run = 0; const cum: Record<string, number> = {}; ["15", "30", "60", "90", "120"].forEach((k) => { run += CB[k][1]; cum[k] = run; });
   return (<div className="mx-stack">
     {d.goals ? <GoalBanner d={d} v={v} ceo /> : null}
     <h3 className="serif mx-h">GCI and income</h3>
-    <div className="mx-kpis three">{cards.map(([t, val, sub]) => <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">{sub}</div></div>)}</div>
+    <div className="mx-kpis three">{cardsShown.map(([t, val, sub]) => <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">{sub}</div></div>)}</div>
     <div className="mx-kpis">{[["Listing avg sales price", usd(L.asp)], ["Listing avg commission", usd(L.ac)], ["Buyer avg sales price", usd(B.asp)], ["Buyer avg commission", usd(B.ac)]].map(([t, val]) =>
       <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">Sisu closed YTD, gross GCI</div></div>)}</div>
     <div className="mx-two">
@@ -195,11 +211,11 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
       <div className="mx-cash">{buckets.map(([k, l]) => { const mx = Math.max(1, ...buckets.map(([q]) => CB[q][1])); return (<div className="mx-cashrow" key={k}><span className="l">{l}</span>
         <span className="bar"><i style={{ width: `${(CB[k][1] / mx) * 100}%`, background: k === "overdue" ? C.gold : C.blue }} /></span><span className="v">{usd(CB[k][1])}<em>{n0(CB[k][0])} deals</em></span></div>); })}</div></div>
     <div className="mx-card"><h3 className="serif mx-h">Monthly breakdown {Y}</h3>
-      <SortTable cols={["Month", "Closed Units", "Volume", "GCI (gross)", "Listings", "Buyers", "Pending Units", "Pending Volume", "Pending GCI", "Expenses", "Net Profit", "Projected Net Profit"]}
+      <SortTable cols={["Month", "Closed Units", "Volume", "GCI (gross)", "Listings", "Buyers", "Pending Units", "Pending Volume", "Pending GCI", "Expenses", "Net Profit", "Projected Net Profit"].slice(0, AG ? 9 : 12)}
         rows={MN.map((n, i) => { const fut = i > m; const cu = S.closed[Y].b[i] + S.closed[Y].s[i]; const ex = ok(P.expenses[i]) && ok(P.cogs[i]) ? P.expenses[i] + P.cogs[i] : null;
           return [n, fut ? DASH : n0(cu), fut ? DASH : usd(d.vol[v][Y].b[i] + d.vol[v][Y].s[i]), fut ? DASH : usd(d.gci[v][Y].b[i] + d.gci[v][Y].s[i]), fut ? DASH : n0(S.closed[Y].s[i]), fut ? DASH : n0(S.closed[Y].b[i]),
-            d.pmon[v].units[i] ? n0(d.pmon[v].units[i]) : DASH, d.pmon[v].units[i] ? usd(d.pmon[v].vol[i]) : DASH, d.pmon[v].units[i] ? usd(d.pmon[v].gci[i]) : DASH, usd(ex), usd(P.net[i]), DASH]; })} />
-      <p className="mx-hint">Expenses = P&L operating expenses + cost of goods sold (agent payouts); net profit = P&L net income. P&L is by deposit date and covers {plM || "no months yet"}; it does not follow the leases & referrals switch{lrOn ? "" : " (switch is off)"}. Pending by forecasted close month. Tap a header to sort.</p></div>
+            d.pmon[v].units[i] ? n0(d.pmon[v].units[i]) : DASH, d.pmon[v].units[i] ? usd(d.pmon[v].vol[i]) : DASH, d.pmon[v].units[i] ? usd(d.pmon[v].gci[i]) : DASH, usd(ex), usd(P.net[i]), DASH].slice(0, AG ? 9 : 12); })} />
+      {AG ? <p className="mx-hint">Expenses and net profit are team-level only (P&L has no per-agent split). Pending by forecasted close month. Tap a header to sort.</p> : <p className="mx-hint">Expenses = P&L operating expenses + cost of goods sold (agent payouts); net profit = P&L net income. P&L is by deposit date and covers {plM || "no months yet"}; it does not follow the leases & referrals switch{lrOn ? "" : " (switch is off)"}. Pending by forecasted close month. Tap a header to sort.</p>}</div>
   </div>);
 }
 

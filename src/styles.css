@@ -131,3 +131,27 @@ img, svg { max-width: 100%; }
 .askbar { display: flex; gap: 8px; margin-top: 14px; position: sticky; bottom: 0; z-index: 4; background: var(--paper); padding: 8px 0; border-top: 1px solid var(--soft); }
 .askbar input { flex: 1 1 auto; min-width: 0; min-height: 44px; font: inherit; font-size: 16px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 2px; }
 .askbar .primary { padding: 10px 18px; }
+
+/* Global agent selector */
+.topagent { flex: 1 1 auto; display: flex; justify-content: center; min-width: 0; }
+.agentsel { display: inline-flex; align-items: center; gap: 8px; font-family: Inter, system-ui, sans-serif; font-size: 13px; color: var(--paper); }
+.agentsel span { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; color: #C0A062; }
+.agentsel select { font: inherit; font-size: 14px; color: #12151C; background: #F3F1EB; border: 1px solid #C0A062; border-radius: 6px; padding: 7px 30px 7px 10px; max-width: 260px; min-height: 36px; }
+@media (max-width: 720px) {
+  .topagent { order: 5; flex-basis: 100%; justify-content: stretch; }
+  .agentsel { width: 100%; } .agentsel select { flex: 1; max-width: none; min-height: 40px; }
+}
+.agentbanner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding: 10px 14px; margin: 0 0 14px; background: #fff; border-left: 4px solid #00519B; border-radius: 4px; font-family: Inter, system-ui, sans-serif; font-size: 13px; color: #3a3a3a; }
+.agentbanner b { font-size: 18px; color: #12151C; font-weight: 600; }
+.teamonly { background: #fff; border: 1px solid #D6D0C2; border-radius: 8px; padding: 18px 20px; margin: 12px 0; font-family: Inter, system-ui, sans-serif; color: #1A1A1A; }
+.teamonly-k { font-family: Georgia, Cambria, serif; font-size: 20px; color: #00519B; margin-bottom: 6px; }
+.teamonly p { margin: 0 0 12px; line-height: 1.5; }
+.teamonly .ghost.dark { color: #12151C; border-color: #12151C; }
+/* Fello funnel */
+.fl-funnel { display: grid; gap: 10px; }
+.fl-step { display: grid; grid-template-columns: minmax(150px, 220px) 1fr 90px; gap: 12px; align-items: center; }
+.fl-l b { display: block; font-size: 14px; color: #12151C; } .fl-l span { font-size: 12px; color: #6B6B6B; }
+.fl-track { background: #E6E2D8; height: 14px; border-radius: 7px; overflow: hidden; } .fl-track i { display: block; height: 100%; background: #00519B; }
+.fl-step:last-child .fl-track i { background: #C0A062; }
+.fl-v { text-align: right; font-size: 20px; } .fl-v em { display: block; font-style: normal; font-family: Inter, sans-serif; font-size: 11px; color: #6B6B6B; }
+@media (max-width: 640px) { .fl-step { grid-template-columns: 1fr 70px; } .fl-track { grid-column: 1 / -1; order: 3; } }

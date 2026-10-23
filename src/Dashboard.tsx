@@ -3,6 +3,7 @@
 import { Page, Section, Text, Table, Grid, Segmented, Select, Toggle, Bars, ColumnSeries, Rows, Properties, Legend, Fragment, useGrokTheme, useState, useMemo } from "./kit";
 import Myt from "./Myt";
 import MainScreen from "./MainScreen";
+import { useAgent, TeamOnly, sameAgent, usePersist } from "./agent";
 import Ask from "./Ask";
 
 let D: any = null;
@@ -81,17 +82,22 @@ const mNamesG = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","No
 
 export default function Dashboard() {
   const th = useGrokTheme();
-  const [tab, setTab] = useState<string>("team");
-  const [mainTab, setMainTab] = useState<string>("snapshot");
+  const [tab, setTab] = usePersist<string>("t", "team");
+  const [mainTab, setMainTab] = usePersist<string>("mt", "snapshot");
   const [srt, setSrt] = useState<Record<string, string>>({});
   const [pm, setPm] = useState<number>(8);
-  const [rcCat, setRcCat] = useState<string>("all");
+  const [rcCat, setRcCat] = usePersist<string>("rc", "all");
 
-  const [agent, setAgent] = useState<string>(Object.keys(D.names).sort((a, b) => D.names[a].localeCompare(D.names[b]))[0]);
-  const [per, setPer] = useState<Per>("mtd");
+  const G = useAgent(); const gA = G.agent;
+  const gKey = gA ? Object.keys(D.names).find((k) => sameAgent(D.names[k], gA)) : undefined;
+  const [agent0, setAgent] = usePersist<string>("da", Object.keys(D.names).sort((a, b) => D.names[a].localeCompare(D.names[b]))[0], (x) => x in D.names);
+  const agent = gKey ?? agent0;
+  const [per, setPer] = usePersist<Per>("per", "mtd" as Per);
   const sortBy = "sGci";
-  const [isaSel, setIsaSel] = useState<string>("team");
-  const [lrOn, setLrOn] = useState<string>("on");
+  const [isaSel0, setIsaSel] = usePersist<string>("isa", "team");
+  const gIsa = gA ? Object.keys((ISA && ISA.labels) || {}).find((k) => sameAgent(ISA.labels[k], gA)) : undefined;
+  const isaSel = gA ? (gIsa ?? "team") : isaSel0;
+  const [lrOn, setLrOn] = usePersist<string>("lr", "on");
   const lease = lrOn === "on" ? "in" : "out"; // one global leases & referrals switch drives GCI views and ISA
   const view = tab === "agents" ? "agent" : tab === "isa" ? "isa" : tab === "coaching" ? "coaching" : "team"; // group comes from the tab
   const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev,
@@ -100,7 +106,7 @@ export default function Dashboard() {
   const key = view === "agent" ? agent : view;
   const s: any = SG(D.segs[key]);
   const i = PI[per];
-  const label = view === "agent" ? D.names[agent] : view === "isa" ? "ISA Team" : view === "coaching" ? "Coaching group" : "Whole team";
+  const label = gA && (tab === "team" || tab === "myt") ? gA : view === "agent" ? D.names[agent] : view === "isa" ? "ISA Team" : view === "coaching" ? "Coaching group" : "Whole team";
   const members: string[] = view === "isa" || view === "coaching" ? D.groups[view] : Object.keys(D.names);
   const memberNames = members.map((k: string) => D.names[k]).filter(Boolean);
   const nameMatch = (agents: string) => view === "team" || memberNames.some((nm: string) => { const p = nm.toLowerCase().split(" "); const a = agents.toLowerCase(); return a.includes(p[0]) && a.includes(p[p.length - 1]); });
@@ -172,10 +178,20 @@ export default function Dashboard() {
       const fi = kids.findIndex((c: any) => c.props && c.props.heading === "Filters");
       const keep = mainTab === "details" ? kids : kids.filter((c: any) => !(c.props && c.props.heading && c.props.heading !== "Filters"));
       kids.length = 0; kids.push(...keep);
-      kids.splice(fi + 1, 0, <MainScreen key="main" data={D.main} lrOn={lrOn === "on"} tab={mainTab} setTab={setMainTab} />);
+      kids.splice(fi + 1, 0, <MainScreen key="main" data={D.main} lrOn={lrOn === "on"} tab={mainTab} setTab={setMainTab} agent={gA} />);
     }
-    const body = tab === "myt" ? [...kids.filter((c: any) => !(c.props && c.props.heading && c.props.heading !== "Filters")), <Myt key="myt" data={D.myt} lrOn={lrOn === "on"} />] : tab === "ask" ? [...kids.filter((c: any) => !(c.props && c.props.heading)), <Ask key="ask" data={D.coach} />] : kids;
-    return <Page title={el.props.title} width={el.props.width} summary={el.props.summary}>{body}</Page>;
+    const body = tab === "myt" ? [...kids.filter((c: any) => !(c.props && c.props.heading && c.props.heading !== "Filters")), <Myt key="myt" data={D.myt} lrOn={lrOn === "on"} agent={gA} setAgent={G.setAgent} agentList={G.list} />] : tab === "ask" ? [...kids.filter((c: any) => !(c.props && c.props.heading)), <Ask key="ask" data={D.coach} />] : kids;
+    let shown: any[] = body;
+    if (gA) { // global agent selector: per-agent where the data has it, otherwise a plain team-level-only notice
+      const plain = kids.filter((c: any) => !(c.props && c.props.heading && c.props.heading !== "Filters"));
+      const TO: Record<string, string> = { coaching: "The Coaching group view", attr: "Lead attribution", pnl: "The team P&L", recon: "Data reconciliation", ask: "Ask / Coach" };
+      if (tab === "team" && mainTab === "details") shown = [...plain, <TeamOnly key="to" what="The Details tab (legacy team sections)" />];
+      else if (TO[tab]) shown = [...plain, <TeamOnly key="to" what={TO[tab]} />];
+      else if (tab === "isa" && !gIsa) shown = [...plain, <TeamOnly key="to" what={`ISA tracking (${gA} is not one of the human ISAs: ${Object.values(ISA.labels || {}).join(", ") || "—"}), which`} />];
+      else if (tab === "agents") shown = gKey ? kids.filter((c: any) => !(c.props && c.props.heading && c.props.heading !== "Filters" && !String(c.props.heading).startsWith("Agent drill-down")))
+        : [...plain, <TeamOnly key="to" what={`The agent drill-down (no FUB/Sisu scorecard row matches ${gA})`} />];
+    }
+    return <Page title={el.props.title} width={el.props.width} summary={el.props.summary}>{shown}</Page>;
   };
 
   return gate(
@@ -189,7 +205,7 @@ export default function Dashboard() {
         <Grid columns={tab === "agents" ? 3 : 2} plain>
           <Segmented options={[{ value: "mtd", label: "MTD" }, { value: "lm", label: "Last month" }, { value: "ytd", label: "YTD" }, { value: "t30", label: "Last 30d" }]} value={per} onChange={(v: string) => setPer(v as Per)} />
           <Toggle label="Include leases & referrals (all GCI and ISA)" value={lrOn === "on"} onChange={(v: boolean) => setLrOn(v ? "on" : "off")} />
-          {tab === "agents" ? <Select label="Agent (drill-down)" options={agentOpts} value={agent} onChange={setAgent} /> : null}
+          {tab === "agents" && !gA ? <Select label="Agent (drill-down)" options={agentOpts} value={agent} onChange={setAgent} /> : null}
         </Grid>
         <Text>{`Showing ${label} · ${PL[per]} (${D.periods[per][0]} to ${D.periods[per][1]}) · GCI ${LRL}. Each figure is labelled with its source.`}</Text>
       </Section>
@@ -293,7 +309,7 @@ export default function Dashboard() {
         ]} />
       </Section>
       <Section heading="ISA tracking" caption={`${PL[per]}. Human ISAs = FUB "ISA Team" minus Jesse Jones (Fello AI dialer, reported separately below). Leases ${lease === "in" ? "included" : "excluded"}. Converted = FUB tags "<Name> - Converted", "<Name> Converted", and "... Converted Lease".`}>
-        <Segmented options={isaOpts} value={isaSel} onChange={setIsaSel} />
+        {gA ? null : <Segmented options={isaOpts} value={isaSel} onChange={setIsaSel} />}
         <Grid columns={2}>
           <Table columns={["ISA activity", PL[per]]} rows={[
             ["Leads routed to ISA", n0(IS.assigned[i])],

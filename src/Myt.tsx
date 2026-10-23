@@ -1,6 +1,7 @@
 // Multi-Year Trends tab: one year x month table per metric, report-month and scope selectors, print layout.
 // Data: payload.myt from myt_build.py (tracker metrics first, Bly Team Metrics Tracker sheet fills gaps). Null = no source coverage, shown as an em dash (never zero-filled).
 import { useEffect, useMemo, useState } from "react";
+import { usePersist } from "./agent";
 import { createPortal } from "react-dom";
 import "./myt.css";
 
@@ -211,12 +212,15 @@ function Picker({ D, scopeMetrics, sel, setSel, onClose }: { D: any; scopeMetric
   );
 }
 
-export default function Myt({ data, lrOn = true }: { data: any; lrOn?: boolean }) {
+const lkey = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
+export default function Myt({ data, lrOn = true, agent, setAgent, agentList }: { data: any; lrOn?: boolean; agent?: string | null; setAgent?: (a: string | null) => void; agentList?: string[] }) {
   const D = data;
-  const [scope, setScope] = useState("team");
-  const [ym, setYm] = useState(D ? `${D.cur[0]}-${String(D.cur[1]).padStart(2, "0")}` : "");
+  const [scope0, setScope] = usePersist("ms", "team");
+  const aScope = agent && D ? Object.keys(D.scopes).find((k) => k !== "team" && lkey(k) === lkey(agent)) : undefined;
+  const scope = agent ? (aScope ?? "team") : setAgent ? "team" : scope0;
+  const [ym, setYm] = usePersist("ym", D ? `${D.cur[0]}-${String(D.cur[1]).padStart(2, "0")}` : "");
   const groupsAll: string[] = D ? Array.from(new Set(D.metrics.map((m: Metric) => m.group))) : [];
-  const [grp, setGrp] = useState("all");
+  const [grp, setGrp] = usePersist("mg", "all");
   const [printing, setPrinting] = useState(false);
   const [sel, setSelRaw] = useState<Set<string>>(() => initialSel(D));
   const [pick, setPick] = useState(false);
@@ -231,7 +235,8 @@ export default function Myt({ data, lrOn = true }: { data: any; lrOn?: boolean }
   const opts: string[] = [];
   for (let y = D.cur[0]; y >= D.years[0]; y--) for (let m = 12; m >= 1; m--) if (y < D.cur[0] || m <= D.cur[1]) opts.push(`${y}-${String(m).padStart(2, "0")}`);
   const ry = +ym.slice(0, 4), rep = +ym.slice(5, 7);
-  const scopes = ["team", ...Object.keys(D.scopes).filter((s) => s !== "team")];
+  const scopes = ["team", ...Object.keys(D.scopes).filter((s) => s !== "team" && !/^(jesse jones|ralph\b)/i.test(s.trim()) && (!agentList || agentList.some((a) => lkey(a) === lkey(s))))];
+  if (agent && !aScope) return <div className="section"><h2 className="serif">Multi-Year Trends · {agent}</h2><p className="caption">— No Multi-Year Trends rows for this agent in this snapshot.</p></div>;
   const groups = grp === "all" ? groupsAll : [grp];
   const scopeMetrics: Metric[] = D.metrics.filter((m: Metric) => scope === "team" || !m.team);
   const chosen = scopeMetrics.filter((m) => sel.has(m.k) && groups.includes(m.group));
@@ -283,7 +288,7 @@ export default function Myt({ data, lrOn = true }: { data: any; lrOn?: boolean }
         <h2 className="serif">Multi-Year Trends</h2>
         <p className="caption">One table per metric, a row for each year since {D.years[0]} (as far back as Sisu goes), Jan–Dec, the year total, and MOM, YOY and YTD change for the report month. A dash (—) means no source covers that month. It is not a zero. Leases and referrals follow the global toggle in Filters. Each table is tagged with its source: Tracker (Sisu, FUB, eXp file, P&amp;L), Recruiting sheet (By The Numbers, snapshot {D.asof?.recruiting}), Bly sheet (Bly Team Metrics Tracker, snapshot {D.asof?.sheet}), or a combination. Tracker numbers win wherever they cover the same month; for recruiting, the recruiting sheet wins over the Bly sheet; the Bly sheet fills the rest. Recruiting tables show counts only.</p>
         <div className="myt-ctl">
-          <label>Scope<select value={scope} onChange={(e) => setScope(e.target.value)}>{scopes.map((s) => <option key={s} value={s}>{s === "team" ? "The Bly Team (company)" : s}</option>)}</select></label>
+          <label>Scope<select value={scope} onChange={(e) => { const x = e.target.value; if (setAgent) setAgent(x === "team" ? null : (agentList ?? []).find((a) => lkey(a) === lkey(x)) ?? null); else setScope(x); }}>{scopes.map((s) => <option key={s} value={s}>{s === "team" ? "The Bly Team (company)" : s}</option>)}</select></label>
           <label>Report month<select value={ym} onChange={(e) => setYm(e.target.value)}>{opts.map((o) => <option key={o} value={o}>{MONL[+o.slice(5) - 1]} {o.slice(0, 4)}</option>)}</select></label>
           <label>Section<select value={grp} onChange={(e) => setGrp(e.target.value)}><option value="all">All sections</option>{groupsAll.map((g) => <option key={g} value={g}>{g}</option>)}</select></label>
           <button className="myt-pick-btn" onClick={() => setPick(true)} aria-haspopup="dialog">Metrics · {chosen.length} of {scopeMetrics.filter((m) => groups.includes(m.group)).length}</button>

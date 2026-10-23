@@ -3,6 +3,9 @@ import { type Session } from "@supabase/supabase-js";
 import { supabase } from "./sb";
 import { setData } from "./Dashboard";
 import Layout from "./Layout";
+import { restoreHash, saveReturn } from "./agent";
+
+restoreHash(); // land where you left off (new tab, back button, Slack sign-in redirect)
 
 const SITE = window.location.origin + import.meta.env.BASE_URL;
 
@@ -20,21 +23,22 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const uid = session?.user.id;
   useEffect(() => {
-    if (!session) return;
+    if (!uid) return; // token refreshes keep the same user: no refetch, no remount, no lost place
     (async () => {
-      setState("loading");
+      if (!payload) setState("loading");
       const { data: staff, error: e1 } = await supabase.rpc("is_staff");
       if (e1) { setState("error"); return; }
       if (!staff) { setState("restricted"); return; }
       const { data, error } = await supabase.from("metrics_snapshots").select("snap_date,payload").order("snap_date", { ascending: false }).limit(1);
       if (error) { setState("error"); return; }
       if (!data || !data.length) { setState("nodata"); return; }
-      setData(data[0].payload); setPayload(data[0].payload); setAsOf(data[0].snap_date); setState("ready");
+      setData(data[0].payload); setPayload(data[0].payload); setAsOf(data[0].snap_date); restoreHash(); setState("ready");
     })();
-  }, [session]);
+  }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const signIn = () => supabase.auth.signInWithOAuth({ provider: "slack_oidc", options: { redirectTo: SITE } });
+  const signIn = () => { saveReturn(); return supabase.auth.signInWithOAuth({ provider: "slack_oidc", options: { redirectTo: SITE } }); };
   const signOut = () => supabase.auth.signOut();
 
   if (state === "ready") return <Layout payload={payload} asOf={asOf} right={<button className="ghost" onClick={signOut}>Sign out</button>} />;
