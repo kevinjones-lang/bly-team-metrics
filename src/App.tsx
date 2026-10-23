@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { createClient, type Session } from "@supabase/supabase-js";
+import { type Session } from "@supabase/supabase-js";
+import { supabase } from "./sb";
 import Dashboard, { setData } from "./Dashboard";
 
-const URL = import.meta.env.VITE_SUPABASE_URL as string;
-const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-const supabase = createClient(URL, KEY, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" } });
 const SITE = window.location.origin + import.meta.env.BASE_URL;
 
 type State = "loading" | "signedout" | "restricted" | "nodata" | "ready" | "error";
