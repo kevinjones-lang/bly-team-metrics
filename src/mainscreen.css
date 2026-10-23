@@ -86,3 +86,13 @@
   .mx-rows { flex: 1; }
   .mx-kpi-v { font-size: 36px; }
 }
+/* 2027 goal pacing */
+.mx-prog { position: relative; }
+.mx-prog-fill { position: absolute; left: 0; top: 0; height: 6px; border-radius: 3px; max-width: 100%; }
+.mx-prog-mark { position: absolute; top: -3px; width: 2px; height: 12px; background: #F3F1EB; transform: translateX(-1px); }
+.mx-legend i.dash.gold { border-top-color: #C0A062; }
+.mx-goal { min-width: 0; }
+.mx-goal .mx-prog-track { background: #E6E2D8; }
+.mx-goal .mx-prog-l { color: #8C8A84; font-size: 12px; flex-wrap: wrap; }
+.mx-goal-v { font-size: 24px; margin: 4px 0 8px; overflow-wrap: anywhere; }
+.mx-goal-v em { font-size: 12px; font-style: normal; color: #8C8A84; font-family: inherit; }

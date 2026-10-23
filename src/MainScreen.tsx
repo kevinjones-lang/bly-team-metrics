@@ -13,6 +13,18 @@ const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : DAS
 const sum = (a: any[]) => a.reduce((s: number, x: any) => s + (ok(x) ? x : 0), 0);
 const add = (a: number[], b: number[]) => a.map((x, i) => x + b[i]);
 
+const STAT = ["Not on pace", "On pace", "Goal achieved"], STC = [C.grey, C.gold, C.blue];
+/** period goal from the 2027 annual target: target for the full period, plus pace target for elapsed days */
+function perGoal(d: any, per: string, annual: number | null | undefined) {
+  if (!annual) return null;
+  const [a, b] = d.periods[per].map((x: string) => new Date(x + "T12:00:00"));
+  const elapsed = Math.round((+b - +a) / 864e5) + 1;
+  let full = elapsed;
+  if (per === "mtd") full = d.dim; else if (per === "ytd") full = d.goals?.ndy || 365;
+  const ndy = d.goals?.ndy || 365;
+  return { full: (annual * full) / ndy, pace: (annual * elapsed) / ndy };
+}
+const status = (val: number, g: { full: number; pace: number } | null) => (!g ? -1 : val >= g.full ? 2 : val >= g.pace ? 1 : 0);
 type P = { data: any; lrOn: boolean; tab: string; setTab: (t: string) => void };
 export const MAIN_TABS = [{ value: "snapshot", label: "Snapshot" }, { value: "pacing", label: "Pacing" }, { value: "ceo", label: "CEO" }, { value: "details", label: "Details" }];
 
@@ -39,6 +51,7 @@ function Snapshot({ d, v }: { d: any; v: string }) {
       <div className="mx-kpi-row"><span>Buyers</span><b>{n0(yt(k, "b"))}</b></div><div className="mx-kpi-row"><span>Sellers</span><b>{n0(yt(k, "s"))}</b></div></div>);
   const pb = d.pend[v].b.units, ps = d.pend[v].s.units;
   const tot = (k: string) => Object.fromEntries(d.years.map((y: number) => [y, add(S[k][y].b, S[k][y].s)]));
+  const tot2 = (o: any) => Object.fromEntries(d.years.map((y: number) => [y, add(o[y].b, o[y].s)]));
   const charts: [string, Record<string, (number | null)[]>][] = [
     ["Under Contract Units", tot("uc")], ["Closed Units", tot("closed")], ["Signed Units", tot("signed")],
     ["Appointments Met", tot("met")], ["Appointments Set", tot("set")], ["Conversations", d.conv]];
@@ -47,13 +60,17 @@ function Snapshot({ d, v }: { d: any; v: string }) {
       <div className="mx-kpi"><div className="mx-kpi-t">Units Pending</div><div className="mx-kpi-v serif">{n0(pb + ps)}</div>
         <div className="mx-kpi-row"><span>Buyers</span><b>{n0(pb)}</b></div><div className="mx-kpi-row"><span>Sellers</span><b>{n0(ps)}</b></div><div className="mx-kpi-row muted"><span>Sisu, open now</span><b /></div></div></div>
     <div className="mx-bar"><div className="mx-seg">{[["m", "Monthly"], ["a", "Annually"]].map(([k, l]) => <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => setMode(k as any)}>{l}</button>)}</div>
-      <span className="mx-hint">{mode === "a" ? "Running total through each month" : "Units per month"} · dotted = {MN[m]} projected from month to date · Goals not set in Sisu</span></div>
-    <div className="mx-charts">{charts.map(([t, s]) => <LineChart key={t} title={t} s={s} d={d} cum={mode === "a"} />)}</div>
+      <span className="mx-hint">{mode === "a" ? "Running total through each month" : "Units per month"} · dotted = {MN[m]} projected from month to date{d.goals ? ` · gold dashed = ${d.goals.year} monthly goal` : " · Goals not set"}</span></div>
+    <div className="mx-charts">
+      {d.goals ? <><LineChart title="Closed Volume" s={tot2(d.vol[v])} d={d} cum={mode === "a"} money goal={d.goals.monthly.volume} />
+        <LineChart title="Closed GCI (gross)" s={tot2(d.gci[v])} d={d} cum={mode === "a"} money goal={d.goals.monthly.gci} /></> : null}
+      {charts.map(([t, s]) => <LineChart key={t} title={t} s={s} d={d} cum={mode === "a"} goalNote={d.goals ? `no ${d.goals.year} unit goal in plan` : undefined} />)}</div>
     <p className="mx-note">Appointments set/met in Sisu are only sparsely dated before 2026, and Sisu activity (conversations = Sisu "contacts") was barely logged from Oct 2024 to Jul 2026; those months show as gaps, not zeros.</p>
   </div>);
 }
 
-function LineChart({ title, s, d, cum }: { title: string; s: Record<string, (number | null)[]>; d: any; cum: boolean }) {
+function LineChart({ title, s, d, cum, money, goal, goalNote }: { title: string; s: Record<string, (number | null)[]>; d: any; cum: boolean; money?: boolean; goal?: number | null; goalNote?: string }) {
+  const fm = money ? usdK : n0;
   const [Y0, Y1, Y2] = d.years; const m = d.month - 1;
   const proj = d.day < d.dim ? (s[Y2][m] ?? null) !== null ? (s[Y2][m] as number) * d.dim / d.day : null : null;
   const mk = (a: (number | null)[], cut?: number) => { let r = 0; return a.map((x, i) => (cut !== undefined && i > cut ? null : !ok(x) ? (cum ? null : null) : cum ? (r += x as number) : x)); };
@@ -63,8 +80,9 @@ function LineChart({ title, s, d, cum }: { title: string; s: Record<string, (num
   const lines = [{ y: Y0, c: C.grey, a: mk(s[Y0]) }, { y: Y1, c: C.gold, a: mk(s[Y1]) }, { y: Y2, c: C.blue, a: d.day < d.dim ? cur : curFull }];
   const ytd = (a: (number | null)[]) => { const xs = a.slice(0, m + 1); return xs.some(ok) ? sum(xs) : null; };
   const yoy = (y: number, prev: number) => { const a = ytd(s[y]), b = ytd(s[prev]); return a === null || b === null || !b ? DASH : `${a >= b ? "+" : ""}${Math.round(((a - b) / b) * 100)}%`; };
-  const all = [...lines.flatMap((l) => l.a), pv].filter(ok) as number[];
-  const max = Math.max(1, ...all) * 1.1; const W = 320, H = 150, pl = 30, pr = 8, pt = 8, pb = 20;
+  const ga = goal ? MN.map((_, i) => (cum ? goal * (i + 1) : goal)) : null;
+  const all = [...lines.flatMap((l) => l.a), pv, ...(ga || [])].filter(ok) as number[];
+  const max = Math.max(1, ...all) * 1.1; const W = 320, H = 150, pl = money ? 40 : 30, pr = 8, pt = 8, pb = 20;
   const X = (i: number) => pl + (i * (W - pl - pr)) / 11, Yp = (v: number) => pt + (H - pt - pb) * (1 - v / max);
   const path = (a: (number | null)[]) => a.reduce((p: string, v, i) => (ok(v) ? p + `${p && ok(a[i - 1]) ? "L" : "M"}${X(i).toFixed(1)},${Yp(v as number).toFixed(1)}` : p), "");
   const ticks = [0, max / 2, max].map((t) => Math.round(t));
@@ -72,20 +90,21 @@ function LineChart({ title, s, d, cum }: { title: string; s: Record<string, (num
   return (<figure className="mx-chart">
     <figcaption className="serif">{title}</figcaption>
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${title} by month, ${Y2} vs ${Y1} vs ${Y0}`}>
-      {ticks.map((t) => <g key={t}><line x1={pl} x2={W - pr} y1={Yp(t)} y2={Yp(t)} stroke="#E6E2D8" /><text x={pl - 4} y={Yp(t) + 3} textAnchor="end" className="mx-ax">{t.toLocaleString()}</text></g>)}
+      {ticks.map((t) => <g key={t}><line x1={pl} x2={W - pr} y1={Yp(t)} y2={Yp(t)} stroke="#E6E2D8" /><text x={pl - 4} y={Yp(t) + 3} textAnchor="end" className="mx-ax">{money ? usdK(t) : t.toLocaleString()}</text></g>)}
       {MN.map((n, i) => (i % 2 === 0 ? <text key={n} x={X(i)} y={H - 6} textAnchor="middle" className="mx-ax">{n}</text> : null))}
+      {ga ? <path d={path(ga)} fill="none" stroke={C.gold} strokeWidth={1.5} strokeDasharray="6 4" /> : null}
       {lines.map((l) => <path key={l.y} d={path(l.a)} fill="none" stroke={l.c} strokeWidth={l.y === Y2 ? 2.5 : 1.75} />)}
       {pv !== null ? (<g>{prevPt ? <line x1={prevPt[0]} y1={prevPt[1]} x2={X(m)} y2={Yp(pv)} stroke={C.blue} strokeWidth={2} strokeDasharray="4 3" /> : null}
         <circle cx={X(m)} cy={Yp(pv)} r={3.5} fill="#fff" stroke={C.blue} strokeWidth={2} /></g>) : null}
       {lines.map((l) => l.a.map((v, i) => (ok(v) && l.y === Y2 ? <circle key={l.y + "-" + i} cx={X(i)} cy={Yp(v as number)} r={2.2} fill={l.c} /> : null)))}
     </svg>
     <div className="mx-legend">
-      <span><i style={{ background: C.blue }} />{Y2} <b>{n0(ytd(s[Y2]))}</b> <em>{yoy(Y2, Y1)}</em></span>
-      <span><i style={{ background: C.gold }} />{Y1} <b>{n0(ytd(s[Y1]))}</b> <em>{yoy(Y1, Y0)}</em></span>
-      <span><i style={{ background: C.grey }} />{Y0} <b>{n0(ytd(s[Y0]))}</b></span>
-      <span className="muted"><i className="dash" />Goals: not set</span>
+      <span><i style={{ background: C.blue }} />{Y2} <b>{fm(ytd(s[Y2]))}</b> <em>{yoy(Y2, Y1)}</em></span>
+      <span><i style={{ background: C.gold }} />{Y1} <b>{fm(ytd(s[Y1]))}</b> <em>{yoy(Y1, Y0)}</em></span>
+      <span><i style={{ background: C.grey }} />{Y0} <b>{fm(ytd(s[Y0]))}</b></span>
+      {goal ? <span><i className="dash gold" />{d.goals.year} goal <b>{fm(goal)}/mo</b></span> : <span className="muted"><i className="dash" />Goals: {goalNote || "not set"}</span>}
     </div>
-    {pv !== null ? <div className="mx-proj">{MN[m]} projected: {n0(Math.round(proj as number))} (month to date {n0(s[Y2][m])})</div> : null}
+    {pv !== null ? <div className="mx-proj">{MN[m]} projected: {fm(Math.round(proj as number))} (month to date {fm(s[Y2][m])})</div> : null}
   </figure>);
 }
 
@@ -100,9 +119,11 @@ function Pacing({ d, v }: { d: any; v: string }) {
   const m = d.month - 1, Y = d.years[2];
   const forecast = who === "team" && per === "mtd" ? d.pmon[v].units[m] : null;
   const fvol = who === "team" && per === "mtd" ? d.pmon[v].vol[m] : null;
-  const top = [["Closed Volume", usdK(both("vol"))], ["Closed Units", n0(both("closed"))],
+  const G = who === "team" ? d.goals : null; const runMode = G && G.mode === "runrate";
+  const gv = perGoal(d, per, G?.annual.volume);
+  const top: any[] = [["Closed Volume", usdK(both("vol")), "", both("vol"), gv], ["Closed Units", n0(both("closed"))],
     ["Closed & Forecasted", forecast === null ? DASH : n0(both("closed") + forecast), forecast === null ? "This Month, whole team only" : `${n0(forecast)} pending forecast to close in ${MN[m]}`],
-    ["Closed & Forecasted Volume", fvol === null ? DASH : usdK(both("vol") + fvol), fvol === null ? "This Month, whole team only" : ""], ["U/C Volume", usdK(both("ucvol"))]];
+    ["Closed & Forecasted Volume", fvol === null ? DASH : usdK(both("vol") + fvol), fvol === null ? "This Month, whole team only" : "", fvol === null ? null : both("vol") + fvol, fvol === null ? null : gv], ["U/C Volume", usdK(both("ucvol"))]];
   const ST = [["set", "Appointments Set"], ["met", "Appointments Met"], ["signed", "Signed"], ["uc", "Under Contract"], ["closed", "Closed"]];
   const row = (s: "b" | "s") => (<div className="mx-ringrow">
     <div className="mx-side">{s === "b" ? "Buyer" : "Seller"}</div>
@@ -116,9 +137,12 @@ function Pacing({ d, v }: { d: any; v: string }) {
       <label className="mx-field"><span>Scope</span><select value={who} onChange={(e) => setWho(e.target.value)}><option value="team">Whole team</option>{names.map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
       <span className="mx-hint">{d.periods[per][0]} to {d.periods[per][1]} · Sisu dates</span>
     </div>
-    <div className="mx-tops">{top.map(([t, val, sub]) => (<div className="mx-top" key={t}><div className="mx-kpi-t">{Y} {t}</div><div className="mx-top-v serif">{val}</div>
-      <div className="mx-prog"><div className="mx-prog-track" /></div><div className="mx-prog-l"><span>{sub || "Goal not set"}</span><span>{sub ? "Goal not set" : ""}</span></div></div>))}</div>
-    <div className="mx-legend mx-c"><span><i style={{ background: C.grey }} />Not on pace</span><span><i style={{ background: C.gold }} />On pace</span><span><i style={{ background: C.blue }} />Goal achieved</span><span className="muted">Pacing colors need goals; no goals are set in Sisu, so rings show actuals only.</span></div>
+    {G ? <GoalBanner d={d} v={v} /> : null}
+    <div className="mx-tops">{top.map(([t, val, sub, raw, gg]) => { const st = status(raw || 0, gg); const f = gg ? Math.min(1, (raw || 0) / gg.full) : 0;
+      return (<div className="mx-top" key={t}><div className="mx-kpi-t">{Y} {t}</div><div className="mx-top-v serif">{val}</div>
+      <div className="mx-prog"><div className="mx-prog-track" />{gg ? <><div className="mx-prog-fill" style={{ width: `${f * 100}%`, background: STC[st] }} /><div className="mx-prog-mark" style={{ left: `${Math.min(1, gg.pace / gg.full) * 100}%` }} /></> : null}</div>
+      <div className="mx-prog-l"><span>{gg ? `${STAT[st]} · ${pct(raw || 0, gg.full)}` : sub || (who === "team" ? "No 2027 goal for this" : "No agent goals")}</span><span>{gg ? `${runMode ? "2027 rate" : "Goal"} ${usdK(gg.full)}` : ""}</span></div></div>); })}</div>
+    <div className="mx-legend mx-c"><span><i style={{ background: C.grey }} />Not on pace</span><span><i style={{ background: C.gold }} />On pace</span><span><i style={{ background: C.blue }} />Goal achieved</span><span className="muted">{G ? `${runMode ? `Run-rate vs ${G.year} goal: ${Y} actuals vs the same period at the ${G.year} target rate (annual ÷ 365 per day). ` : ""}Volume has a goal; the ${G.year} plan has no unit or appointment goals, so rings show actuals only. Tick = pace for days elapsed.` : "Goals are team-level only; rings show actuals."}</span></div>
     <div className="mx-circles">
       <div className="mx-convcol"><Ring value={conv} label="Conversations" big /><div className="mx-hint">Sisu contacts logged</div></div>
       <div className="mx-rows">{row("b")}{row("s")}</div>
@@ -158,6 +182,7 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
   const CB = d.cash[v]; const buckets: [string, string][] = [["overdue", "Past forecast date"], ["15", "0–15 days"], ["30", "16–30 days"], ["60", "31–60 days"], ["90", "61–90 days"], ["120", "91–120 days"], ["later", "120+ days"]];
   let run = 0; const cum: Record<string, number> = {}; ["15", "30", "60", "90", "120"].forEach((k) => { run += CB[k][1]; cum[k] = run; });
   return (<div className="mx-stack">
+    {d.goals ? <GoalBanner d={d} v={v} ceo /> : null}
     <h3 className="serif mx-h">GCI and income</h3>
     <div className="mx-kpis three">{cards.map(([t, val, sub]) => <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">{sub}</div></div>)}</div>
     <div className="mx-kpis">{[["Listing avg sales price", usd(L.asp)], ["Listing avg commission", usd(L.ac)], ["Buyer avg sales price", usd(B.asp)], ["Buyer avg commission", usd(B.ac)]].map(([t, val]) =>
@@ -184,4 +209,18 @@ function SortTable({ cols, rows, plain }: { cols: string[]; rows: string[][]; pl
   const rs = sk < 0 ? rows : [...rows].sort((a, b) => (sk === 0 && !plain ? 0 : (num(a[sk]) - num(b[sk])) * dir));
   return (<div className="mx-tw"><table className="mx-t"><thead><tr>{cols.map((c, i) => <th key={c + i}>{plain || i === 0 ? c : <button onClick={() => { if (sk === i) setDir(-dir); else { setSk(i); setDir(-1); } }}>{c}{sk === i ? (dir < 0 ? " ▼" : " ▲") : ""}</button>}</th>)}</tr></thead>
     <tbody>{rs.map((r, j) => <tr key={j}>{r.map((c, i) => <td key={i}>{c}</td>)}</tr>)}</tbody></table></div>);
+}
+
+/* ---------------- 2027 goal banner (Pacing + CEO) ---------------- */
+function GoalBanner({ d, v, ceo }: { d: any; v: string; ceo?: boolean }) {
+  const G = d.goals, R = G.runrate[v], Y = d.years[2];
+  const row = (k: string, lbl: string) => { const x = R[k]; const st = x.ann >= x.goal ? 2 : x.ann >= x.goal * 0.95 ? 1 : 0;
+    return (<div className="mx-goal" key={k}><div className="mx-kpi-t">{lbl}: {G.year} goal {usdK(x.goal)}</div>
+      <div className="mx-goal-v serif">{usdK(x.ann)} <em>{Y} annualized · {pct(x.ann, x.goal)}</em></div>
+      <div className="mx-prog"><div className="mx-prog-track" /><div className="mx-prog-fill" style={{ width: `${Math.min(1, x.ann / x.goal) * 100}%`, background: STC[st] }} /></div>
+      <div className="mx-prog-l"><span>Trailing 12 mo {usdK(x.t12)} · {pct(x.t12, x.goal)}</span><span>Gap {usdK(Math.max(0, x.goal - x.ann))}</span></div>
+      {ceo ? <div className="mx-kpi-sub">{Y} YTD actual {usd(x.ytd)} · monthly goal {usd(G.monthly[k])}</div> : null}</div>); };
+  return (<div className="mx-card"><h3 className="serif mx-h">{G.mode === "runrate" ? `Run-rate vs ${G.year} goal` : `${G.year} goal pacing`}</h3>
+    <div className="mx-two">{row("volume", "Closed volume")}{row("gci", "GCI (gross)")}</div>
+    <p className="mx-hint">{G.year} one-year plan (EOS kickoff, Sep 30 2026): $125M volume × 2.75% = $3.44M GCI; company dollar {usdK(G.annual.company_dollar)}; profit {usdK(G.annual.profit)}; mortgage JV 4 closings/month. Sisu GCI is gross. Not in plan: {G.year} unit, appointment and per-agent goals.</p></div>);
 }

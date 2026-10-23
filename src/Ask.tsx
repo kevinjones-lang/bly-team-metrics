@@ -33,7 +33,7 @@ export function Markdown({ md }: { md: string }) {
   return <div className="md">{out}</div>;
 }
 
-const CHIPS: [string, string][] = [["pace", "Who's behind pace YTD?"], ["atrisk", "At-risk deals closing this month"], ["pending", "Pending GCI by agent"],
+const CHIPS: [string, string][] = [["pace2027", "Pace vs 2027 goal"], ["pace", "Who's behind pace YTD?"], ["atrisk", "At-risk deals closing this month"], ["pending", "Pending GCI by agent"],
   ["stl", "Speed to lead"], ["roi", "Lead source ROI YTD"], ["activity", "Activity consistency"], ["lost", "Lost transactions YTD"], ["snapshot", "MTD/YTD snapshot"]];
 
 export default function Ask({ data }: { data: any }) {
@@ -50,7 +50,7 @@ export default function Ask({ data }: { data: any }) {
     const s = t.toLowerCase();
     const ag = (data.agents || []).find((x: any) => s.includes(x.n.toLowerCase()) || s.includes(x.n.split(" ")[0].toLowerCase() + " " + (x.n.split(" ").pop() || "").toLowerCase()));
     if (ag && /coach|1:1|one on one|prep|how is|doing/.test(s)) return ag.k;
-    const R: [RegExp, string][] = [[/pace|behind|goal|ahead/, "pace"], [/risk|stall|overdue|closing this month|missing/, "atrisk"], [/pending|forecast/, "pending"], [/speed|stl|uncontacted|first call/, "stl"],
+    const R: [RegExp, string][] = [[/2027|goal|run.?rate|target/, "pace2027"], [/pace|behind|goal|ahead/, "pace"], [/risk|stall|overdue|closing this month|missing/, "atrisk"], [/pending|forecast/, "pending"], [/speed|stl|uncontacted|first call/, "stl"],
       [/roi|source|conversion|attribution/, "roi"], [/activity|consisten|calls|dial/, "activity"], [/lost|fell|cancel/, "lost"], [/snapshot|mtd|ytd|closed|units|volume|gci/, "snapshot"]];
     const r = R.find(([re]) => re.test(s)); return r ? r[1] : ag ? ag.k : null;
   };
