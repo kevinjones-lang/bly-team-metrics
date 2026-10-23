@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
 import { supabase } from "./sb";
-import Dashboard, { setData } from "./Dashboard";
+import { setData } from "./Dashboard";
+import Layout from "./Layout";
 
 const SITE = window.location.origin + import.meta.env.BASE_URL;
 
@@ -11,6 +12,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [state, setState] = useState<State>("loading");
   const [asOf, setAsOf] = useState<string>("");
+  const [payload, setPayload] = useState<any>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); if (!data.session) setState("signedout"); });
@@ -28,12 +30,14 @@ export default function App() {
       const { data, error } = await supabase.from("metrics_snapshots").select("snap_date,payload").order("snap_date", { ascending: false }).limit(1);
       if (error) { setState("error"); return; }
       if (!data || !data.length) { setState("nodata"); return; }
-      setData(data[0].payload); setAsOf(data[0].snap_date); setState("ready");
+      setData(data[0].payload); setPayload(data[0].payload); setAsOf(data[0].snap_date); setState("ready");
     })();
   }, [session]);
 
   const signIn = () => supabase.auth.signInWithOAuth({ provider: "slack_oidc", options: { redirectTo: SITE } });
   const signOut = () => supabase.auth.signOut();
+
+  if (state === "ready") return <Layout payload={payload} asOf={asOf} right={<button className="ghost" onClick={signOut}>Sign out</button>} />;
 
   return (
     <div className="shell">
@@ -59,7 +63,6 @@ export default function App() {
           </div>) : null}
         {state === "nodata" ? <div className="gatecard"><h1 className="serif">No snapshot yet</h1><p className="rule" /><p>The daily data load has not run yet. Check back after the next pipeline run.</p></div> : null}
         {state === "error" ? <div className="gatecard"><h1 className="serif">Something went wrong</h1><p className="rule" /><p>Could not load the dashboard. Try signing out and in again.</p><button className="ghost dark" onClick={signOut}>Sign out</button></div> : null}
-        {state === "ready" ? <div className="dash"><div className="asof">Snapshot {asOf}</div><Dashboard /></div> : null}
       </main>
       <footer className="foot serif">Built to multiply.</footer>
     </div>
