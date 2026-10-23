@@ -131,6 +131,7 @@ export default function Dashboard() {
   const atM: any[] = AT.m[atKey] || AT.m[`${atSeg}|${per}|1`] || [];
   const atT: any[] = view === "agent" ? ((lrOn === "off" && AT.t[agent + "|x"]) || AT.t[agent] || []) : (AT.t[atKey] || []);
   const atGs: any[] = (AT.gs || {})[`${atSeg}|${per}|${lrOn === "off" ? "x" : 1}`] || [];
+  const nU = (v: number) => (v % 1 ? v.toFixed(1) : n0(v));
   const RCC: any = lrOn === "off" && AT.rc.cx ? AT.rc.cx : AT.rc.c;
   const RCS: any = lrOn === "off" && AT.rc.sisux ? AT.rc.sisux : AT.rc.sisu;
   const RCB: any = lrOn === "off" && AT.rc.beforex ? AT.rc.beforex : AT.rc.before;
@@ -407,14 +408,14 @@ export default function Dashboard() {
         </Section>
         <Table columns={["P&L report through", "YTD profit", "Federal tax estimate"]} rows={PNL.est.map((r: any[]) => [r[0], usd(r[1]), usd(r[2])])} />
       </Section>
-      <Section heading="Data reconciliation" caption={`Year to date. Sisu closings not attributable to a 2026 FUB lead, checked against the eXp export (with SkySlope stage) and FUB person lookups by email/name. Sisu YTD (${LRL}): ${n0(RCS[0])} closings, ${usd(RCS[1])} GCI; ${n0(RCB[0])} (${usd(RCB[1])}) matched before reconciliation. eXp YTD closed: ${n0(AT.rc.exp[0])} files, ${n0(AT.rc.expm)} matched to Sisu.`}>
+      <Section heading="Data reconciliation" caption={`Year to date. Sisu closings not attributable to a 2026 FUB lead, checked against the eXp export (with SkySlope stage) and FUB person lookups by email/name. Sisu YTD (${LRL}): ${nU(RCS[0])} closings (transactions, same dedupe as the headline), ${usd(RCS[1])} GCI; ${nU(RCB[0])} (${usd(RCB[1])}) matched before reconciliation, plus categories a to e below, equals that total. Category f is eXp-only and adds to the attribution total. eXp YTD closed: ${n0(AT.rc.exp[0])} files, ${n0(AT.rc.expm)} matched to Sisu.`}>
         <Table columns={["Category", "Closings", "GCI", "Now counted as"]} rows={[
           ["(a) In eXp, FUB person under a different name/email", "a", "Linked to that FUB person"],
           ["(b) In eXp, no FUB record (FUB incomplete)", "b", "Unknown (not in FUB)"],
           ["(c) FUB lead created before 2026 (2026 closing)", "c", "Counts toward that lead's original FUB source"],
           ["(d) Lease / referral / fee entry", "d", "FUB source if found, else Unknown"],
           ["(e) In Sisu only, not in eXp", "e", "Unknown (Sisu only)"],
-          ["(f) In eXp, missing from Sisu (eXp team revenue)", "f", "Unknown (not in FUB)"]].map(([l, k, h]) => [l, n0(RCC[k][0]), usd(RCC[k][1]), h])} />
+          ["(f) In eXp, missing from Sisu (eXp team revenue)", "f", "Unknown (not in FUB)"]].map(([l, k, h]) => [l, nU(RCC[k][0]), usd(RCC[k][1]), h])} />
         <Section heading="Fix list (largest first; pre-2026 leads are informational)">
           <Segmented options={[{ value: "all", label: "All categories" }, ...Array.from(new Set((AT.rc.f as any[]).map((r: any) => String(r[4])))).sort().map((c: string) => ({ value: c, label: "Category " + c }))]} value={rcCat} onChange={setRcCat} />
           <Table columns={["Address", "Agent", "Close date", "GCI", "Cat.", "Issue", "Suggested fix"]} rows={sortRowsBy((AT.rc.f as any[]).filter((r: any) => rcCat === "all" || String(r[4]) === rcCat).map((r: any) => [r[0], r[1], r[2], usd(r[3]), r[4], r[5], r[6]]), srt.fix)} />
