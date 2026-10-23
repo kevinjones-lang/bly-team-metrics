@@ -3,7 +3,7 @@
 .myt-controls h2 { font-size: 22px; margin: 0 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--gold); display: inline-block; }
 .myt-ctl { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: end; }
 @media (min-width: 640px) { .myt-ctl { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1024px) { .myt-ctl { grid-template-columns: 2fr 1.3fr 1.3fr auto; } }
+@media (min-width: 1024px) { .myt-ctl { grid-template-columns: 1.6fr 1.2fr 1.2fr auto auto; } }
 .myt-ctl label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
 .myt-ctl select { min-height: 44px; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 8px 10px; width: 100%; }
 .myt-ctl .myt-chk { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; color: var(--ink); font-size: 14px; }
@@ -76,3 +76,30 @@
   .myt-print .myt-group { gap: 6px; } .myt-print .myt-gh { font-size: 13px; break-after: avoid; }
   .myt-print .myt-report { gap: 8px; }
 }
+
+.myt-pick-btn { min-height: 44px; font: inherit; background: var(--paper); color: var(--blue); border: 1px solid var(--blue); border-radius: 2px; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+.myt-dl { position: relative; }
+.myt-dl-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; background: var(--paper); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 260px; display: flex; flex-direction: column; }
+.myt-dl-menu button { text-align: left; min-height: 44px; padding: 10px 14px; background: none; border: 0; border-bottom: 1px solid var(--soft); font: inherit; cursor: pointer; color: var(--ink); }
+.myt-dl-menu button:hover { background: var(--ivory); }
+.myt-msg { color: var(--blue); }
+.myt-flag { color: #a3332b; font-weight: 700; margin-left: 2px; }
+.myt-flagnote { font-size: 12px; color: #a3332b; margin: 6px 0 0; }
+.myt-pick-wrap { position: fixed; inset: 0; z-index: 1000; background: rgba(20,20,20,.45); display: flex; align-items: flex-end; justify-content: center; }
+.myt-pick { background: var(--paper, #fff); width: 100%; max-height: 86vh; display: flex; flex-direction: column; border-top: 3px solid var(--gold, #C0A062); border-radius: 12px 12px 0 0; padding: 14px 16px 0; box-sizing: border-box; }
+@media (min-width: 768px) { .myt-pick-wrap { align-items: flex-start; padding-top: 8vh; } .myt-pick { max-width: 760px; border-radius: 4px; max-height: 80vh; } }
+.myt-pick-h { display: flex; align-items: center; gap: 12px; } .myt-pick-h b { font-size: 20px; } .myt-pick-h span { color: var(--muted); font-size: 13px; flex: 1; }
+.myt-x { min-width: 44px; min-height: 44px; font-size: 26px; background: none; border: 0; cursor: pointer; }
+.myt-search { min-height: 44px; font: inherit; border: 1px solid var(--line); padding: 8px 10px; margin: 8px 0; width: 100%; box-sizing: border-box; }
+.myt-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.myt-presets button, .myt-pick-g legend button { min-height: 36px; padding: 4px 12px; border: 1px solid var(--line); background: var(--ivory); border-radius: 18px; font: inherit; font-size: 13px; cursor: pointer; }
+.myt-pick-list { overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+.myt-pick-g { border: 0; border-top: 1px solid var(--soft); margin: 0; padding: 8px 0 10px; display: grid; grid-template-columns: 1fr; gap: 2px; }
+@media (min-width: 768px) { .myt-pick-g { grid-template-columns: 1fr 1fr; } }
+.myt-pick-g legend { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--blue); padding: 6px 0; width: 100%; }
+.myt-pick-g legend span { display: flex; gap: 6px; margin-left: auto; }
+.myt-pick-i { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 14px; cursor: pointer; }
+.myt-pick-i input { width: 20px; height: 20px; accent-color: var(--blue); }
+.myt-pick-f { position: sticky; bottom: 0; background: var(--paper, #fff); padding: 10px 0 14px; border-top: 1px solid var(--soft); }
+.myt-pick-f button { width: 100%; min-height: 44px; }
+@media print { .myt-flagnote { font-size: 8px; } }
