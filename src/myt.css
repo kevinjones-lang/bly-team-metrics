@@ -1,0 +1,73 @@
+/* Multi-Year Trends tab (own file so the shared styles.css stays untouched). Mobile-first; 640/1024 breakpoints. */
+.myt { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.myt-controls h2 { font-size: 22px; margin: 0 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--gold); display: inline-block; }
+.myt-ctl { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: end; }
+@media (min-width: 640px) { .myt-ctl { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1024px) { .myt-ctl { grid-template-columns: 2fr 1.3fr 1.3fr auto; } }
+.myt-ctl label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+.myt-ctl select { min-height: 44px; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 8px 10px; width: 100%; }
+.myt-ctl .myt-chk { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; color: var(--ink); font-size: 14px; }
+.myt-chk input { width: 22px; height: 22px; accent-color: var(--blue); }
+.myt-print-btn { width: 100%; }
+@media (min-width: 640px) { .myt-print-btn { width: auto; } }
+.myt-missing { margin-top: 12px; font-size: 14px; }
+.myt-missing summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--blue); }
+.myt-missing li { margin: 4px 0; color: #3a3a3a; }
+.myt-report { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.myt-head { background: var(--charcoal); color: var(--paper); padding: 16px clamp(14px, 3vw, 28px); display: flex; flex-direction: column; gap: 10px; border-bottom: 2px solid var(--gold); }
+@media (min-width: 1024px) { .myt-head { flex-direction: row; justify-content: space-between; align-items: flex-end; } }
+.myt-kicker { color: var(--gold); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
+.myt-head h2 { margin: 2px 0; font-size: clamp(24px, 4vw, 34px); }
+.myt-month { font-size: 18px; color: #dcd6c8; }
+.myt-head-r { font-size: 12px; color: #cfc9bb; display: flex; flex-direction: column; gap: 2px; max-width: 620px; }
+@media (min-width: 1024px) { .myt-head-r { text-align: right; } }
+.myt-gh { font-size: 20px; margin: 8px 0 0; color: var(--blue); }
+.myt-group { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.myt-metric { background: var(--paper); border: 1px solid var(--soft); padding: 12px clamp(10px, 2vw, 20px) 14px; min-width: 0; }
+.myt-metric.is-missing { background: #faf9f5; }
+.myt-mh { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+@media (min-width: 640px) { .myt-mh { flex-direction: row; justify-content: space-between; align-items: flex-start; } }
+.myt-mh h3 { font-size: 18px; margin: 0; }
+.myt-src { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); max-width: 820px; }
+.myt-kw { color: #8b7a4f; }
+.myt-spark { margin: 0; width: 100%; max-width: 240px; flex: 0 0 auto; }
+.myt-spark svg { width: 100%; height: 56px; display: block; background: linear-gradient(transparent 49%, var(--soft) 50%, transparent 51%); }
+.myt-spark figcaption { display: flex; gap: 10px; font-size: 11px; color: var(--muted); }
+.myt-spark figcaption i { display: inline-block; width: 10px; height: 2px; margin-right: 4px; vertical-align: middle; }
+.myt-spark.empty { font-size: 12px; color: var(--muted); }
+.myt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border: 1px solid var(--soft); }
+.myt-table { border-collapse: collapse; width: 100%; min-width: 1060px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.myt-table th, .myt-table td { padding: 6px 7px; text-align: right; border-bottom: 1px solid var(--soft); white-space: nowrap; }
+.myt-table thead th { background: var(--ivory); font-weight: 600; color: var(--ink); font-size: 12px; vertical-align: bottom; }
+.myt-table th small { display: block; font-weight: 400; color: var(--muted); font-size: 10.5px; }
+.myt-table .yr { position: sticky; left: 0; z-index: 1; text-align: left; background: var(--paper); font-weight: 600; box-shadow: 1px 0 0 var(--line); }
+.myt-table thead .yr { background: var(--ivory); z-index: 2; }
+.myt-table .sel { background: rgba(0, 81, 155, 0.06); }
+.myt-table .tot { font-weight: 600; border-left: 1px solid var(--line); }
+.myt-table .chg { min-width: 64px; }
+.myt-table td.chg.up { color: #1f6b3a; }
+.myt-table td.chg.down { color: #a3332b; }
+.myt-table tr.cur .yr, .myt-table tr.cur td { font-weight: 600; }
+.myt-table tr.cur .yr { color: var(--blue); }
+.is-missing .myt-table td { color: #9a958a; }
+.myt-print { display: none; }
+@media print {
+  @page { size: letter landscape; margin: 9mm; }
+  body.myt-printing { background: #fff; }
+  body.myt-printing > *:not(.myt-print) { display: none !important; }
+  body.myt-printing .myt-print { display: block; }
+  .myt-print { font-size: 9px; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .myt-print .myt-head { flex-direction: row; justify-content: space-between; align-items: flex-end; padding: 10px 14px; }
+  .myt-print .myt-head-r { text-align: right; }
+  .myt-print .myt-metric { break-inside: avoid; page-break-inside: avoid; padding: 6px 8px; border: 0; border-top: 1px solid #ccc; }
+  .myt-print .myt-mh { flex-direction: row; justify-content: space-between; margin-bottom: 4px; }
+  .myt-print .myt-mh h3 { font-size: 12px; }
+  .myt-print .myt-src { font-size: 8px; }
+  .myt-print .myt-spark { max-width: 150px; } .myt-print .myt-spark svg { height: 34px; }
+  .myt-print .myt-scroll { overflow: visible; border: 0; }
+  .myt-print .myt-table { min-width: 0; font-size: 8.5px; table-layout: auto; }
+  .myt-print .myt-table th, .myt-print .myt-table td { padding: 2px 3px; }
+  .myt-print .myt-table .yr { position: static; box-shadow: none; }
+  .myt-print .myt-group { gap: 6px; } .myt-print .myt-gh { font-size: 13px; break-after: avoid; }
+  .myt-print .myt-report { gap: 8px; }
+}
