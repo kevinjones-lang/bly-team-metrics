@@ -186,9 +186,12 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
   const plM = P.months.length ? `${MN[0]}–${MN[Number(P.months[P.months.length - 1].slice(5, 7)) - 1]} ${Y}` : "";
   const coY = sum((d.codollar?.[v] || d.codollar?.all || []).slice(0, m + 1));
   const closedU = ys(S.closed, "b") + ys(S.closed, "s");
+  const owner = !!d.agent && /^(deborah.*bly|kevin jones)$/i.test(String(d.agent).replace(/\s+/g, " ").trim());
+  const agentGciY = owner ? 0 : closedGci - coY;
   const cards: [string, string, string][] = [
-    ["Closed GCI (gross)", usd(closedGci), "Sisu, YTD by close date"], ["Pending GCI (gross)", usd(pendGci), "Sisu, open pending deals"],
-    ["Company dollar", usd(coY), "eXp: Deb + Kevin Team Revenue, YTD by close date"], ["Company dollar / unit", closedU ? usd(coY / closedU) : DASH, "Company dollar ÷ Sisu closed units"],
+    ["Total GCI (Sisu gross)", usd(closedGci), "Sisu, YTD by close date"], ["Pending GCI (gross)", usd(pendGci), "Sisu, open pending deals"],
+    ["Company dollar", usd(coY), "eXp: 100% Deb + Kevin Team Revenue"], ["Agent GCI", usd(agentGciY), owner ? "Deb/Kevin: $0 (commission is company dollar)" : "Total GCI − Company dollar"],
+    ["Company dollar / unit", closedU ? usd(coY / closedU) : DASH, "Company dollar ÷ Sisu closed units"],
     ["Team share (all eXp)", usd(sum(d.xrev[v].slice(0, m + 1))), "eXp report, YTD by close date"], ["Deposited income", usd(plY("income")), `P&L (Tax In-House), ${plM}`],
     ["Net income", usd(plY("net")), `P&L, ${plM}`], ["Projected net income", DASH, "No projection model yet"],
     ["Referrals", usd(d.xref[1]), `${n0(d.xref[0])} eXp referral files YTD (P&L referral income ${usd(plY("referral"))})`],
@@ -196,13 +199,13 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
   const side = (s: "b" | "s") => { const u = ys(S.closed, s), vo = ys(d.vol[v], s), g = ys(d.gci[v], s); return { u, vo, g, asp: u ? vo / u : null, ac: u ? g / u : null }; };
   const L = side("s"), B = side("b");
   const AG = !!d.agent; const TO = "Team-level only";
-  const cardsShown: [string, string, string][] = AG ? cards.map(([t, val, sub]) => (/^(Closed GCI|Pending GCI|Company dollar)/.test(t) ? [t, val, sub] : [t, TO, "eXp full team share / P&L have no per-agent split"]) as [string, string, string]) : cards;
+  const cardsShown: [string, string, string][] = AG ? cards.map(([t, val, sub]) => (/^(Total GCI|Pending GCI|Company dollar|Agent GCI)/.test(t) ? [t, val, sub] : [t, TO, "eXp full team share / P&L have no per-agent split"]) as [string, string, string]) : cards;
   const info = (s: "b" | "s", x: any) => [["Units", n0(x.u + pend[s].units), n0(pend[s].units), n0(x.u)], ["Volume", usd(x.vo + pend[s].vol), usd(pend[s].vol), usd(x.vo)], ["GCI", usd(x.g + pend[s].gci), usd(pend[s].gci), usd(x.g)]];
   const CB = d.cash[v]; const buckets: [string, string][] = [["overdue", "Past forecast date"], ["15", "0–15 days"], ["30", "16–30 days"], ["60", "31–60 days"], ["90", "61–90 days"], ["120", "91–120 days"], ["later", "120+ days"]];
   let run = 0; const cum: Record<string, number> = {}; ["15", "30", "60", "90", "120"].forEach((k) => { run += CB[k][1]; cum[k] = run; });
   return (<div className="mx-stack">
     {d.goals ? <GoalBanner d={d} v={v} ceo /> : null}
-    <h3 className="serif mx-h">GCI and income</h3>
+    <h3 className="serif mx-h">GCI and income</h3><p className="mx-hint">Total GCI = Sisu gross. Company dollar = eXp Team Revenue to Deb + Kevin. Agent GCI = Total GCI − Company dollar (Deb/Kevin = $0). Different systems; not a paycheck figure. No broker-review fee in Sisu/eXp feeds.</p>
     <div className="mx-kpis three">{cardsShown.map(([t, val, sub]) => <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">{sub}</div></div>)}</div>
     <div className="mx-kpis">{[["Listing avg sales price", usd(L.asp)], ["Listing avg commission", usd(L.ac)], ["Buyer avg sales price", usd(B.asp)], ["Buyer avg commission", usd(B.ac)]].map(([t, val]) =>
       <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">Sisu closed YTD, gross GCI</div></div>)}</div>

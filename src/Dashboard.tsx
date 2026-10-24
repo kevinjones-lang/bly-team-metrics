@@ -99,6 +99,10 @@ export default function Dashboard() {
   const isaSel = gA ? (gIsa ?? "team") : isaSel0;
   const [lrOn, setLrOn] = usePersist<string>("lr", "on");
   const lease = lrOn === "on" ? "in" : "out"; // one global leases & referrals switch drives GCI views and ISA
+  const okNum = (v: any) => typeof v === "number" && isFinite(v);
+  const isCoOwner = (nm: string) => { const n = (nm || "").toLowerCase().replace(/\s+/g, " "); return (n.startsWith("deborah") && n.includes("bly")) || n === "depri" || (n.startsWith("kevin") && n.includes("jones")); };
+  /** Agent GCI = Total GCI − Company dollar. Deb/Kevin = 0. Missing company dollar treated as 0 when GCI exists. */
+  const agentGci = (gci: any, co: any, nm: string) => { if (isCoOwner(nm)) return 0; if (!okNum(gci)) return null; return gci - (okNum(co) ? co : 0); };
   const view = tab === "agents" ? "agent" : tab === "isa" ? "isa" : tab === "coaching" ? "coaching" : "team"; // group comes from the tab
   const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev, coDollar: o.coDollarX || o.coDollar,
     mon: o.mon && { ...o.mon, mon_sisu_units: o.mon.mon_sisu_units_x || o.mon.mon_sisu_units, mon_sisu_gci: o.mon.mon_sisu_gci_x || o.mon.mon_sisu_gci, mon_exp_rev: o.mon.mon_exp_rev_x || o.mon.mon_exp_rev } });
@@ -214,12 +218,13 @@ export default function Dashboard() {
         <Table columns={["Metric", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
           ["Closed units (transactions)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "Sisu closed_dt; eXp report"],
           ["Closed volume", usd(s.sVol[i]) + (per === "ytd" ? `  (${yoy(s.sVol[2], s.sVol[4])})` : ""), "Sisu trans_amt"],
-          ["GCI (gross)", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
+          ["Total GCI (Sisu gross)", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
+          ["Company dollar", usd(s.coDollar?.[i]), "eXp: 100% Deb + Kevin Team Revenue"],
+          ["Agent GCI", usd(agentGci(s.sGci[i], s.coDollar?.[i], view === "agent" ? D.names[agent] : "")), view === "agent" && isCoOwner(D.names[agent]) ? "Deb/Kevin: $0 (commission is company dollar)" : "Total GCI − Company dollar"],
+          ["Company dollar per closed unit", (s.sUnits[i] ? usd((s.coDollar?.[i] || 0) / s.sUnits[i]) : "—"), "Company dollar ÷ Sisu closed units"],
           ["Closed sales units (de-duplicated)", n0(s.xUnits[i]), "eXp report"],
           ["Closed sales volume", usd(s.xVol[i]), "eXp report"],
-          ["Team revenue (team share)", usd(s.xRev[i]), "eXp report"],
-          ["Company dollar", usd(s.coDollar?.[i]), "eXp: 100% of Deb + Kevin Team Revenue"],
-          ["Company dollar per closed unit", (s.sUnits[i] ? usd((s.coDollar?.[i] || 0) / s.sUnits[i]) : "—"), "Company dollar ÷ Sisu closed units"],
+          ["Team revenue (all eXp Team Revenue)", usd(s.xRev[i]), "eXp report (includes company dollar + other file lines)"],
           ["Closed leases / referrals", `${n0(s.lease[i])} / ${n0(s.ref[i])}`, "eXp report"],
           ["Pending sales (now)", `${n0(s.pend)} · ${usd(s.pendVol)}`, "eXp report"],
         ]} />
@@ -385,15 +390,16 @@ export default function Dashboard() {
         </Section>
       </Section>
       <Section heading="Agent scorecard" caption={`${PL[per]}; Sisu production ${LRL}, FUB leads and calls.`}>
-        <Table columns={["Agent", "GCI", "Units", "Volume", "Company dollar", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const co = (lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? []; const cv = co[i]; const u = r.s.sUnits[i]; return [D.names[r.k] || r.k, usd(r.s.sGci[i]), n0(r.s.sUnits[i]), usd(r.s.sVol[i]), usd(cv), u ? usd(cv / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
-        <Text>Company dollar = eXp Team Revenue paid to Deborah Bly (Depri) plus Kevin Jones on that agent&apos;s credited deals (Deb&apos;s team-leader share counts toward the other agents and the team, not Deb&apos;s personal row). Kevin has no closed eXp/Sisu commission in this snapshot, so his column is $0.</Text>
+        <Table columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Units", "Volume", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = r.s.sUnits[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(r.s.sVol[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
+        <Text>{`Total GCI = Sisu gross commission. Company dollar = eXp Team Revenue to Deborah Bly (Depri) + Kevin Jones (100% of each). Agent GCI = Total GCI − Company dollar for other agents; $0 for Deb and Kevin (their commission is company dollar). GCI and company dollar come from different systems, so Agent GCI is a working split for the room, not a paycheck figure. eXp has no agent-payout column; Sisu broker-review / royalty / transaction-fee fields are empty on 2026 closings.`}</Text>
       </Section>
-      <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; Sisu production ${LRL}.`}>
+      <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; Sisu production ${LRL}. Total GCI / Company dollar / Agent GCI — see note under the scorecard.`}>
         {(() => { const a: any = SG(D.segs[agent]); return a ? (
           <Grid columns={2}>
             <Properties items={[
-              { label: "GCI", value: usd(a.sGci[i]) }, { label: "Closed units", value: n0(a.sUnits[i]) }, { label: "Closed volume", value: usd(a.sVol[i]) },
-              { label: "Company dollar", value: usd(a.coDollar?.[i]) }, { label: "Company dollar per unit", value: a.sUnits[i] ? usd((a.coDollar?.[i] || 0) / a.sUnits[i]) : "—" },
+              { label: "Total GCI (Sisu gross)", value: usd(a.sGci[i]) }, { label: "Company dollar", value: usd(a.coDollar?.[i]) },
+              { label: "Agent GCI", value: usd(agentGci(a.sGci[i], a.coDollar?.[i], D.names[agent])) }, { label: "Company dollar per unit", value: a.sUnits[i] ? usd((a.coDollar?.[i] || 0) / a.sUnits[i]) : "—" },
+              { label: "Closed units", value: n0(a.sUnits[i]) }, { label: "Closed volume", value: usd(a.sVol[i]) },
               { label: "Pending (now)", value: n0(a.pend) }, { label: "New leads", value: n0(a.leads[i]) }, { label: "Outbound calls", value: n0(a.out[i]) },
               { label: "Appointments", value: n0(a.appt[i]) }, { label: "Texts", value: n0(a.texts[i]) }]} />
             <Bars bars={[["Leads (FUB)", a.leads[i]], ["Appointments set (partial data)", a.sApptSet[i]], ["Appointments met (partial data)", a.sApptMet[i]], ["Signed (partial data)", a.sSigned[i]], ["Under contract", a.sUC[i]], ["Closed", a.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v || 0, display: n0(v) }))} emphasis="none" />
