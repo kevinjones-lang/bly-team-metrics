@@ -100,7 +100,7 @@ export default function Dashboard() {
   const [lrOn, setLrOn] = usePersist<string>("lr", "on");
   const lease = lrOn === "on" ? "in" : "out"; // one global leases & referrals switch drives GCI views and ISA
   const view = tab === "agents" ? "agent" : tab === "isa" ? "isa" : tab === "coaching" ? "coaching" : "team"; // group comes from the tab
-  const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev,
+  const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev, coDollar: o.coDollarX || o.coDollar,
     mon: o.mon && { ...o.mon, mon_sisu_units: o.mon.mon_sisu_units_x || o.mon.mon_sisu_units, mon_sisu_gci: o.mon.mon_sisu_gci_x || o.mon.mon_sisu_gci, mon_exp_rev: o.mon.mon_exp_rev_x || o.mon.mon_exp_rev } });
   const LRL = lrOn === "on" ? "incl. leases & referrals" : "excl. leases & referrals";
   const key = view === "agent" ? agent : view;
@@ -218,6 +218,8 @@ export default function Dashboard() {
           ["Closed sales units (de-duplicated)", n0(s.xUnits[i]), "eXp report"],
           ["Closed sales volume", usd(s.xVol[i]), "eXp report"],
           ["Team revenue (team share)", usd(s.xRev[i]), "eXp report"],
+          ["Company dollar", usd(s.coDollar?.[i]), "eXp: 100% of Deb + Kevin Team Revenue"],
+          ["Company dollar per closed unit", (s.sUnits[i] ? usd((s.coDollar?.[i] || 0) / s.sUnits[i]) : "—"), "Company dollar ÷ Sisu closed units"],
           ["Closed leases / referrals", `${n0(s.lease[i])} / ${n0(s.ref[i])}`, "eXp report"],
           ["Pending sales (now)", `${n0(s.pend)} · ${usd(s.pendVol)}`, "eXp report"],
         ]} />
@@ -383,13 +385,15 @@ export default function Dashboard() {
         </Section>
       </Section>
       <Section heading="Agent scorecard" caption={`${PL[per]}; Sisu production ${LRL}, FUB leads and calls.`}>
-        <Table columns={["Agent", "GCI", "Units", "Volume", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => [D.names[r.k] || r.k, usd(r.s.sGci[i]), n0(r.s.sUnits[i]), usd(r.s.sVol[i]), n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]), srt.score)} />
+        <Table columns={["Agent", "GCI", "Units", "Volume", "Company dollar", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const co = (lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? []; const cv = co[i]; const u = r.s.sUnits[i]; return [D.names[r.k] || r.k, usd(r.s.sGci[i]), n0(r.s.sUnits[i]), usd(r.s.sVol[i]), usd(cv), u ? usd(cv / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
+        <Text>Company dollar = eXp Team Revenue paid to Deborah Bly (Depri) plus Kevin Jones on that agent&apos;s credited deals (Deb&apos;s team-leader share counts toward the other agents and the team, not Deb&apos;s personal row). Kevin has no closed eXp/Sisu commission in this snapshot, so his column is $0.</Text>
       </Section>
       <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; Sisu production ${LRL}.`}>
         {(() => { const a: any = SG(D.segs[agent]); return a ? (
           <Grid columns={2}>
             <Properties items={[
               { label: "GCI", value: usd(a.sGci[i]) }, { label: "Closed units", value: n0(a.sUnits[i]) }, { label: "Closed volume", value: usd(a.sVol[i]) },
+              { label: "Company dollar", value: usd(a.coDollar?.[i]) }, { label: "Company dollar per unit", value: a.sUnits[i] ? usd((a.coDollar?.[i] || 0) / a.sUnits[i]) : "—" },
               { label: "Pending (now)", value: n0(a.pend) }, { label: "New leads", value: n0(a.leads[i]) }, { label: "Outbound calls", value: n0(a.out[i]) },
               { label: "Appointments", value: n0(a.appt[i]) }, { label: "Texts", value: n0(a.texts[i]) }]} />
             <Bars bars={[["Leads (FUB)", a.leads[i]], ["Appointments set (partial data)", a.sApptSet[i]], ["Appointments met (partial data)", a.sApptMet[i]], ["Signed (partial data)", a.sSigned[i]], ["Under contract", a.sUC[i]], ["Closed", a.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v || 0, display: n0(v) }))} emphasis="none" />

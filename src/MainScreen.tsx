@@ -32,7 +32,7 @@ const lkey = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
 function agentData(data: any, agent: string) {
   const A = data.by_agent?.[agent]; if (!A) return null;
   const key = Object.keys(data.agents || {}).find((k) => lkey(k) === lkey(agent));
-  return { ...data, series: A.series, vol: A.vol, gci: A.gci, pend: A.pend, cash: A.cash, pmon: A.pmon, conv: A.conv, goals: null, agoal: A.goal, agent, agentKey: key };
+  return { ...data, series: A.series, vol: A.vol, gci: A.gci, pend: A.pend, cash: A.cash, pmon: A.pmon, conv: A.conv, codollar: A.codollar || { all: [0,0,0,0,0,0,0,0,0,0,0,0], x: [0,0,0,0,0,0,0,0,0,0,0,0] }, goals: null, agoal: A.goal, agent, agentKey: key };
 }
 export const MAIN_TABS = [{ value: "snapshot", label: "Snapshot" }, { value: "pacing", label: "Pacing" }, { value: "ceo", label: "CEO" }, { value: "details", label: "Details" }];
 
@@ -184,16 +184,19 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
   const pend = d.pend[v]; const pendGci = pend.b.gci + pend.s.gci;
   const plY = (k: string) => (P[k].some(ok) ? sum(P[k]) : null);
   const plM = P.months.length ? `${MN[0]}–${MN[Number(P.months[P.months.length - 1].slice(5, 7)) - 1]} ${Y}` : "";
+  const coY = sum((d.codollar?.[v] || d.codollar?.all || []).slice(0, m + 1));
+  const closedU = ys(S.closed, "b") + ys(S.closed, "s");
   const cards: [string, string, string][] = [
     ["Closed GCI (gross)", usd(closedGci), "Sisu, YTD by close date"], ["Pending GCI (gross)", usd(pendGci), "Sisu, open pending deals"],
-    ["Team share GCI", usd(sum(d.xrev[v].slice(0, m + 1))), "eXp report, YTD by close date"], ["Deposited income", usd(plY("income")), `P&L (Tax In-House), ${plM}`],
+    ["Company dollar", usd(coY), "eXp: Deb + Kevin Team Revenue, YTD by close date"], ["Company dollar / unit", closedU ? usd(coY / closedU) : DASH, "Company dollar ÷ Sisu closed units"],
+    ["Team share (all eXp)", usd(sum(d.xrev[v].slice(0, m + 1))), "eXp report, YTD by close date"], ["Deposited income", usd(plY("income")), `P&L (Tax In-House), ${plM}`],
     ["Net income", usd(plY("net")), `P&L, ${plM}`], ["Projected net income", DASH, "No projection model yet"],
     ["Referrals", usd(d.xref[1]), `${n0(d.xref[0])} eXp referral files YTD (P&L referral income ${usd(plY("referral"))})`],
     ["Deductions & agent income", usd(plY("cogs")), `P&L cost of goods sold, ${plM}`], ["Expenses", usd(plY("expenses")), `P&L operating expenses, ${plM}`]];
   const side = (s: "b" | "s") => { const u = ys(S.closed, s), vo = ys(d.vol[v], s), g = ys(d.gci[v], s); return { u, vo, g, asp: u ? vo / u : null, ac: u ? g / u : null }; };
   const L = side("s"), B = side("b");
   const AG = !!d.agent; const TO = "Team-level only";
-  const cardsShown: [string, string, string][] = AG ? cards.map(([t, val, sub]) => (/^(Closed GCI|Pending GCI)/.test(t) ? [t, val, sub] : [t, TO, "eXp report / P&L have no per-agent split"]) as [string, string, string]) : cards;
+  const cardsShown: [string, string, string][] = AG ? cards.map(([t, val, sub]) => (/^(Closed GCI|Pending GCI|Company dollar)/.test(t) ? [t, val, sub] : [t, TO, "eXp full team share / P&L have no per-agent split"]) as [string, string, string]) : cards;
   const info = (s: "b" | "s", x: any) => [["Units", n0(x.u + pend[s].units), n0(pend[s].units), n0(x.u)], ["Volume", usd(x.vo + pend[s].vol), usd(pend[s].vol), usd(x.vo)], ["GCI", usd(x.g + pend[s].gci), usd(pend[s].gci), usd(x.g)]];
   const CB = d.cash[v]; const buckets: [string, string][] = [["overdue", "Past forecast date"], ["15", "0–15 days"], ["30", "16–30 days"], ["60", "31–60 days"], ["90", "61–90 days"], ["120", "91–120 days"], ["later", "120+ days"]];
   let run = 0; const cum: Record<string, number> = {}; ["15", "30", "60", "90", "120"].forEach((k) => { run += CB[k][1]; cum[k] = run; });
