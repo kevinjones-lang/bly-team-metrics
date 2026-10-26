@@ -219,12 +219,12 @@ export default function Dashboard() {
           ["Closed units (transactions)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "Sisu closed_dt; eXp report"],
           ["Closed volume", usd(s.sVol[i]) + (per === "ytd" ? `  (${yoy(s.sVol[2], s.sVol[4])})` : ""), "Sisu trans_amt"],
           ["Total GCI (Sisu gross)", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
-          ["Company dollar", usd(s.coDollar?.[i]), "eXp: 100% Deb + Kevin Team Revenue"],
+          ["Company dollar", usd(s.coDollar?.[i]), "eXp: all-agent Team Revenue (team cuts + 100% Deb/Kevin)"],
           ["Agent GCI", usd(agentGci(s.sGci[i], s.coDollar?.[i], view === "agent" ? D.names[agent] : "")), view === "agent" && isCoOwner(D.names[agent]) ? "Deb/Kevin: $0 (commission is company dollar)" : "Total GCI − Company dollar"],
           ["Company dollar per closed unit", (s.sUnits[i] ? usd((s.coDollar?.[i] || 0) / s.sUnits[i]) : "—"), "Company dollar ÷ Sisu closed units"],
           ["Closed sales units (de-duplicated)", n0(s.xUnits[i]), "eXp report"],
           ["Closed sales volume", usd(s.xVol[i]), "eXp report"],
-          ["Team revenue (all eXp Team Revenue)", usd(s.xRev[i]), "eXp report (includes company dollar + other file lines)"],
+          ["Team revenue (all eXp Team Revenue)", usd(s.xRev[i]), "Same total as Company dollar under the all-agent Team Revenue rule"],
           ["Closed leases / referrals", `${n0(s.lease[i])} / ${n0(s.ref[i])}`, "eXp report"],
           ["Pending sales (now)", `${n0(s.pend)} · ${usd(s.pendVol)}`, "eXp report"],
         ]} />
@@ -391,7 +391,7 @@ export default function Dashboard() {
       </Section>
       <Section heading="Agent scorecard" caption={`${PL[per]}; Sisu production ${LRL}, FUB leads and calls.`}>
         <Table columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Units", "Volume", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = r.s.sUnits[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(r.s.sVol[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
-        <Text>{`Total GCI = Sisu gross commission. Company dollar = eXp Team Revenue to Deborah Bly (Depri) + Kevin Jones (100% of each). Agent GCI = Total GCI − Company dollar for other agents; $0 for Deb and Kevin (their commission is company dollar). GCI and company dollar come from different systems, so Agent GCI is a working split for the room, not a paycheck figure. eXp has no agent-payout column; Sisu broker-review / royalty / transaction-fee fields are empty on 2026 closings.`}</Text>
+        <Text>{`Total GCI = Sisu gross commission. Company dollar = all eXp Team Revenue on Closed deals (every agent’s team cut + 100% Deb + 100% Kevin commission lines). Agent GCI = Total GCI − Company dollar for other agents; $0 for Deb and Kevin (their commission is in company dollar). GCI and company dollar come from different systems, so Agent GCI is a working split for the room, not a paycheck figure. eXp has no agent-payout column; Sisu broker-review / royalty / transaction-fee fields are empty on 2026 closings.`}</Text>
       </Section>
       <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; Sisu production ${LRL}. Total GCI / Company dollar / Agent GCI — see note under the scorecard.`}>
         {(() => { const a: any = SG(D.segs[agent]); return a ? (

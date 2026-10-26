@@ -190,7 +190,7 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
   const agentGciY = owner ? 0 : closedGci - coY;
   const cards: [string, string, string][] = [
     ["Total GCI (Sisu gross)", usd(closedGci), "Sisu, YTD by close date"], ["Pending GCI (gross)", usd(pendGci), "Sisu, open pending deals"],
-    ["Company dollar", usd(coY), "eXp: 100% Deb + Kevin Team Revenue"], ["Agent GCI", usd(agentGciY), owner ? "Deb/Kevin: $0 (commission is company dollar)" : "Total GCI − Company dollar"],
+    ["Company dollar", usd(coY), "eXp: all-agent Team Revenue (team cuts + 100% Deb/Kevin)"], ["Agent GCI", usd(agentGciY), owner ? "Deb/Kevin: $0 (commission is company dollar)" : "Total GCI − Company dollar"],
     ["Company dollar / unit", closedU ? usd(coY / closedU) : DASH, "Company dollar ÷ Sisu closed units"],
     ["Team share (all eXp)", usd(sum(d.xrev[v].slice(0, m + 1))), "eXp report, YTD by close date"], ["Deposited income", usd(plY("income")), `P&L (Tax In-House), ${plM}`],
     ["Net income", usd(plY("net")), `P&L, ${plM}`], ["Projected net income", DASH, "No projection model yet"],
@@ -205,7 +205,7 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
   let run = 0; const cum: Record<string, number> = {}; ["15", "30", "60", "90", "120"].forEach((k) => { run += CB[k][1]; cum[k] = run; });
   return (<div className="mx-stack">
     {d.goals ? <GoalBanner d={d} v={v} ceo /> : null}
-    <h3 className="serif mx-h">GCI and income</h3><p className="mx-hint">Total GCI = Sisu gross. Company dollar = eXp Team Revenue to Deb + Kevin. Agent GCI = Total GCI − Company dollar (Deb/Kevin = $0). Different systems; not a paycheck figure. No broker-review fee in Sisu/eXp feeds.</p>
+    <h3 className="serif mx-h">GCI and income</h3><p className="mx-hint">Total GCI = Sisu gross. Company dollar = all eXp Team Revenue (team cut on every agent split, including 100% Deb + Kevin). Agent GCI = Total GCI − Company dollar (Deb/Kevin personal commission counted in company dollar → $0 Agent GCI). Different systems; not a paycheck figure. No broker-review fee in Sisu/eXp feeds.</p>
     <div className="mx-kpis three">{cardsShown.map(([t, val, sub]) => <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">{sub}</div></div>)}</div>
     <div className="mx-kpis">{[["Listing avg sales price", usd(L.asp)], ["Listing avg commission", usd(L.ac)], ["Buyer avg sales price", usd(B.asp)], ["Buyer avg commission", usd(B.ac)]].map(([t, val]) =>
       <div className="mx-kpi" key={t}><div className="mx-kpi-t">{t}</div><div className="mx-kpi-v sm serif">{val}</div><div className="mx-kpi-sub">Sisu closed YTD, gross GCI</div></div>)}</div>
