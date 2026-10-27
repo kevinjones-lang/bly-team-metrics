@@ -6,6 +6,7 @@ import Fello from "./Fello";
 import Zillow from "./Zillow";
 import Myt from "./Myt";
 import Hub from "./Hub";
+import Referrals from "./referrals/Referrals";
 import { useAgent, TeamOnly } from "./agent";
 
 function RecruitingGate({ data }: { data: any }) { const { agent } = useAgent(); return agent ? <div className="page-body"><h1 className="page-title serif">Recruiting Dynamics</h1><TeamOnly what="Recruiting Dynamics" /></div> : <Recruiting data={data} />; }
@@ -14,6 +15,7 @@ function RecruitingGate({ data }: { data: any }) { const { agent } = useAgent();
 export type NavItem = { id: string; label: string; hint?: string; render: (payload: any) => ReactNode };
 export const NAV: NavItem[] = [
   { id: "hub", label: "Ops Hub", hint: "All sites & apps", render: () => <Hub /> },
+  { id: "referrals", label: "Referral Hub", hint: "Out-of-area handoffs", render: () => <Referrals /> },
   { id: "team", label: "Team Metrics", hint: "Production, leads, P&L", render: () => <Dashboard /> },
   { id: "myt", label: "Multi-Year Trends", hint: "Year × month tables", render: (p) => <Myt data={p?.myt} /> },
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", render: (p) => <FubAudit data={p?.fub_audit} /> },

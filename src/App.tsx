@@ -56,7 +56,7 @@ export default function App() {
             <div className="logoplate"><img src={import.meta.env.BASE_URL + "logo.png"} alt="Bly Team, eXp Realty" /></div>
             <h1 className="serif">Ops hub</h1>
             <p className="rule" />
-            <p>Operations hub for The Bly Team — metrics, CRM, recruiting, and team sites. Staff access only.</p>
+            <p>Operations hub for The Bly Team — metrics, referrals, CRM, recruiting, and team sites. Staff access only.</p>
             <button className="primary" onClick={signIn}>Sign in with Slack</button>
           </div>) : null}
         {state === "restricted" ? (
