@@ -46,7 +46,7 @@ export default function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <div className="wordmark serif">The Bly Team <span className="gold">·</span> Metrics</div>
+        <div className="wordmark serif">The Bly Team <span className="gold">·</span> Ops</div>
         {session ? <button className="ghost" onClick={signOut}>Sign out</button> : null}
       </header>
       <main>
@@ -54,9 +54,9 @@ export default function App() {
         {state === "signedout" ? (
           <div className="gatecard">
             <div className="logoplate"><img src={import.meta.env.BASE_URL + "logo.png"} alt="Bly Team, eXp Realty" /></div>
-            <h1 className="serif">Team metrics</h1>
+            <h1 className="serif">Ops hub</h1>
             <p className="rule" />
-            <p>Production, leads, attribution and P&amp;L for The Bly Team. Staff access only.</p>
+            <p>Operations hub for The Bly Team — metrics, CRM, recruiting, and team sites. Staff access only.</p>
             <button className="primary" onClick={signIn}>Sign in with Slack</button>
           </div>) : null}
         {state === "restricted" ? (

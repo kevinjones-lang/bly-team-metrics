@@ -1,3 +1,4 @@
+import "./fubaudit.css";
 import { useEffect, useState, type ReactNode } from "react";
 import { NAV } from "./nav";
 import { AgentProvider, AgentSelect, useAgent, isExcluded, norm, saveScroll, restoreScroll, rememberHash } from "./agent";
@@ -35,7 +36,7 @@ function Inner({ right, payload, asOf }: { right?: ReactNode; payload: any; asOf
     <div className={"applayout" + (open ? " navopen" : "")}>
       <header className="topbar">
         <button className="hamburger" aria-label="Open navigation" aria-expanded={open} onClick={() => setOpen(!open)}><span /><span /><span /></button>
-        <div className="wordmark serif">The Bly Team <span className="gold">·</span> Metrics</div>
+        <div className="wordmark serif">The Bly Team <span className="gold">·</span> Ops</div>
         <div className="topagent"><AgentSelect /></div>
         <div className="topright">{right}</div>
       </header>
@@ -49,7 +50,7 @@ function Inner({ right, payload, asOf }: { right?: ReactNode; payload: any; asOf
         </nav>
         <div className="scrim" onClick={() => setOpen(false)} />
         <main className="content">
-          {asOf && route === "team" ? <div className="asof">Snapshot {asOf}</div> : null}
+          {asOf && (route === "team" || route === "hub") ? <div className="asof">Snapshot {asOf}</div> : null}
           <div className="dash" key={item.id + "|" + (agent ?? "")}>{item.render(payload)}</div>
           <footer className="foot serif">Built to multiply.</footer>
         </main>

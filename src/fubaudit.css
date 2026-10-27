@@ -55,3 +55,15 @@
 .ft-seg { display: flex; gap: 6px; } .ft-seg button { min-height: 40px; padding: 8px 16px; border: 1px solid var(--line); background: var(--paper); border-radius: 2px; }
 .ft-seg button.on { background: var(--charcoal); color: var(--paper); border-color: var(--charcoal); }
 .fubtabs .rc-legend i.a { background: var(--blue); } .fubtabs .rc-legend i.h { background: var(--gold); }
+
+/* Ops hub tiles */
+.hub-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+@media (min-width: 640px) { .hub-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .hub-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.hub-tile { display: flex; flex-direction: column; gap: 6px; min-height: 120px; padding: 18px 18px 16px; background: var(--ivory); border: 1px solid var(--soft); border-top: 3px solid var(--blue); text-decoration: none; color: var(--ink); transition: background .15s, border-color .15s; }
+.hub-tile:hover { background: #FAF8F3; border-color: var(--gold); border-top-color: var(--gold); }
+.hub-tile-mark { width: 28px; height: 2px; background: var(--gold); margin-bottom: 4px; }
+.hub-tile-label { font-size: 22px; line-height: 1.2; color: var(--charcoal); }
+.hub-tile-hint { font-size: 13px; color: var(--muted); line-height: 1.35; }
+.hub-tile-ext { margin-top: auto; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); }
+.hub-section { margin-top: 8px; }
