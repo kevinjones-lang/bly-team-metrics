@@ -18,6 +18,6 @@ export const NAV: NavItem[] = [
   { id: "myt", label: "Multi-Year Trends", hint: "Year × month tables", render: (p) => <Myt data={p?.myt} /> },
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", render: (p) => <FubAudit data={p?.fub_audit} /> },
   { id: "fello", label: "Fello", hint: "Felix AI to closing", render: (p) => <Fello data={p?.fello} /> },
-  { id: "zillow", label: "Zillow", hint: "Preferred funnel, ZHL", render: (p) => <Zillow data={p?.zillow} /> },
+  { id: "zillow", label: "Zillow", hint: "Tableau Preferred mirror", render: (p) => <Zillow data={p?.zillow} /> },
   { id: "recruiting", label: "Recruiting Dynamics", hint: "Agent recruiting funnel", render: (p) => <RecruitingGate data={p?.recruiting} /> },
 ];
