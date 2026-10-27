@@ -12,8 +12,9 @@ type Tile = {
   note?: string;
 };
 
-/** V1 ops hub tiles: confirmed URLs / in-app routes only (Actions 2026-10-27). */
+/** Ops hub tiles: confirmed URLs / in-app routes only. Referral Hub is one applet, not the whole page. */
 export const HUB_TILES: Tile[] = [
+  { id: "referrals", label: "Referral Hub", hint: "Out-of-area client handoffs", group: "Apps", route: "referrals" },
   { id: "team", label: "Team Metrics", hint: "Production, leads, P&L", group: "Metrics", route: "team" },
   { id: "myt", label: "Multi-Year Trends", hint: "Year × month tables", group: "Metrics", route: "myt" },
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", group: "Metrics", route: "fub-audit" },
@@ -26,7 +27,7 @@ export const HUB_TILES: Tile[] = [
   { id: "rec-master", label: "Recruiting Master Tracker", hint: "Google Sheet", group: "Recruiting", href: "https://docs.google.com/spreadsheets/d/18XXe2ap4b6DqUGgRW8GrT8GUceT7dt2k4VgyglQZpPo/edit" },
 ];
 
-const GROUPS = ["Metrics", "CRM & leads", "Recruiting"];
+const GROUPS = ["Apps", "Metrics", "CRM & leads", "Recruiting"];
 
 export default function Hub() {
   const { href } = useAgent();

@@ -1,0 +1,40 @@
+.referrals .rh-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px; }
+.referrals .rh-top .summary { margin: 0; max-width: 640px; }
+.referrals .rh-tabs { display: flex; gap: 4px; background: var(--charcoal); padding: 4px; overflow-x: auto; }
+.referrals .rh-tabs a { color: rgba(255,255,255,0.78); text-decoration: none; padding: 10px 16px; min-height: 44px; display: inline-flex; align-items: center; font-family: var(--serif); font-size: 16px; white-space: nowrap; }
+.referrals .rh-tabs a.on { color: var(--paper); box-shadow: inset 0 -2px 0 var(--gold); }
+.referrals .rh-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.referrals a.primary, .referrals button.primary { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.referrals button:disabled, .referrals a.primary.disabled { opacity: 0.45; pointer-events: none; }
+.rh-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
+.rh-col { background: var(--paper); border: 1px solid var(--soft); min-height: 140px; display: flex; flex-direction: column; }
+.rh-col h2 { font-size: 16px; margin: 0; padding: 10px 12px 8px; border-bottom: 1px solid var(--gold); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rh-col h2 span { font-family: var(--sans); font-size: 12px; color: var(--muted); }
+.rh-col .rh-empty { color: var(--muted); font-size: 13px; padding: 12px; }
+.rh-card { display: flex; flex-direction: column; gap: 3px; margin: 8px; padding: 10px 12px; background: var(--ivory); border: 1px solid var(--soft); text-decoration: none; color: inherit; }
+.rh-card:hover { border-color: var(--gold); }
+.rh-card.due { border-left: 3px solid var(--gold); }
+.rh-card .rh-name { font-family: var(--serif); font-size: 18px; line-height: 1.25; color: var(--charcoal); }
+.rh-meta { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.rh-pill { display: inline-block; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--charcoal); background: #F6E7C6; padding: 1px 6px; }
+.rh-split { display: grid; gap: 16px; }
+@media (min-width: 900px) { .rh-split { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); align-items: start; } }
+.rh-fields { display: grid; gap: 12px; }
+@media (min-width: 700px) { .rh-fields.two { grid-template-columns: 1fr 1fr; } .rh-fields .wide { grid-column: 1 / -1; } }
+.referrals .field input, .referrals .field textarea, .referrals .field select { font: inherit; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--ink); padding: 8px 10px; border: 1px solid var(--line); background: var(--paper); border-radius: 2px; width: 100%; min-height: 44px; }
+.referrals .field textarea { min-height: 96px; resize: vertical; }
+.rh-error { background: var(--paper); border-left: 3px solid #A3272B; padding: 10px 12px; color: #3a1a1b; }
+.rh-note { background: var(--ivory); border-left: 3px solid var(--gold); padding: 10px 12px; }
+.rh-status { display: flex; flex-wrap: wrap; gap: 6px; }
+.rh-status button { min-height: 44px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 6px 10px; }
+.rh-status button.on { background: var(--charcoal); color: var(--paper); border-color: var(--charcoal); }
+.rh-linkrow { display: flex; gap: 8px; align-items: center; }
+.rh-linkrow input { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); background: var(--ivory); min-height: 44px; }
+.rh-sources { background: var(--paper); border: 1px solid var(--soft); padding: 12px 14px; }
+.rh-sources summary { cursor: pointer; font-family: var(--serif); font-size: 18px; }
+.rh-sources ul { margin: 8px 0 0; padding-left: 18px; }
+.rh-sources li { margin: 6px 0; }
+.rh-events { list-style: none; margin: 0; padding: 0; }
+.rh-events li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--soft); font-size: 14px; }
+.rh-events time { color: var(--muted); white-space: nowrap; }
+.rh-cc { font-size: 13px; color: #3a3a3a; margin: 0; }
