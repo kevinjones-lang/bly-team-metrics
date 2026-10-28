@@ -13,6 +13,7 @@
     "@azure/msal-browser": "^5.27.0",
     "@supabase/supabase-js": "^2.45.4",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "write-excel-file": "^4.1.1"

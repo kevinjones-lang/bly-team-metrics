@@ -237,7 +237,10 @@ export function checkedBoxes(form: ReferralForm): Array<keyof typeof BOXES> {
   return boxes;
 }
 
-export function validateHandoff(form: ReferralForm): string | null {
+export type HandoffCheck = "preview" | "draft";
+
+/** Preview checks the PDF fields. The Follow Up Boss owner is required only when creating the Outlook draft. */
+export function validateHandoff(form: ReferralForm, purpose: HandoffCheck = "draft"): string | null {
   if (!form.originatingAgent.trim()) return "Originating agent name is required. Paperwork uses Deborah G. Bly.";
   if (!form.originatingBrokerage.trim()) return "Originating brokerage is required.";
   if (form.originatingEmail.trim() && !isEmail(form.originatingEmail)) return "Originating agent email is not valid.";
@@ -249,8 +252,19 @@ export function validateHandoff(form: ReferralForm): string | null {
   if (form.clientName.trim().length > 200) return "Client name is too long.";
   if (!isEmail(form.clientEmail)) return "Client email is required.";
   if (form.clientPhone.replace(/\D/g, "").length < 7) return "Client phone is required.";
-  if (!form.blyAgent.trim()) return "Name the Bly Team agent who owns this lead in Follow Up Boss. That name goes in the email, not on the originating-agent line.";
-  if (form.blyAgent.trim().length > 200) return "Bly Team agent name is too long.";
+  switch (purpose) {
+    case "preview":
+      if (form.blyAgent.trim().length > 200) return "Bly Team agent name is too long.";
+      break;
+    case "draft":
+      if (!form.blyAgent.trim()) return "Name the Bly Team agent who owns this lead in Follow Up Boss. That name goes in the email, not on the originating-agent line.";
+      if (form.blyAgent.trim().length > 200) return "Bly Team agent name is too long.";
+      break;
+    default: {
+      const _n: never = purpose;
+      return _n;
+    }
+  }
   switch (form.contract) {
     case "buy":
     case "sell":
