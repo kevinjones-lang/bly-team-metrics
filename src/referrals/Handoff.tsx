@@ -6,6 +6,7 @@ import {
   type ContractChoice, type FeeKind, type FormSeed, type ReferralForm,
 } from "./formModel.ts";
 import { fillReferralPdf, loadReferralTemplate } from "./pdfFill.ts";
+import PdfPreview from "./PdfPreview.tsx";
 import { handoffPayload } from "./outlookDraft.ts";
 import { connectMicrosoft, createStaffDraft, microsoftAccount, microsoftConfigured } from "./outlook.ts";
 
@@ -109,12 +110,16 @@ export default function Handoff(props: {
 
   const edit = (patch: Partial<ReferralForm>) => {
     setFormState((current) => ({ ...current, ...patch }));
-    setPdf(null);
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    setStep("edit");
+    const keys = Object.keys(patch) as (keyof ReferralForm)[];
+    const changesPdf = keys.some((key) => key !== "blyAgent");
+    if (changesPdf) {
+      setPdf(null);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setStep("edit");
+    }
     setNote("");
   };
 
@@ -131,7 +136,7 @@ export default function Handoff(props: {
   };
 
   const preview = async () => {
-    const problem = validateHandoff(form);
+    const problem = validateHandoff(form, "preview");
     if (problem) { setErr(problem); return; }
     setWorking(true); setErr(""); setNote("");
     try {
@@ -166,8 +171,8 @@ export default function Handoff(props: {
 
   const create = async () => {
     if (!pdf) { setErr("Preview the filled PDF before creating the draft."); return; }
-    const problem = validateHandoff(form);
-    if (problem) { setErr(problem); setStep("edit"); return; }
+    const problem = validateHandoff(form, "draft");
+    if (problem) { setErr(problem); return; }
     setWorking(true); setErr(""); setNote("");
     try {
       await props.onPersist(form);
@@ -262,7 +267,7 @@ export default function Handoff(props: {
             <Field label="Bly Team agent (Follow Up Boss owner)" wide><input value={form.blyAgent} onChange={(e) => edit({ blyAgent: e.target.value })} placeholder="Who owns this lead for follow-up" /></Field>
             <Field label="Additional terms" wide><textarea value={form.additionalTerms} onChange={(e) => edit({ additionalTerms: e.target.value })} /></Field>
           </div>
-          <p className="caption">Signature lines stay blank. {contractCaption(form.contract)} The fee defaults to 25% of gross commission.</p>
+          <p className="caption">Signature lines stay blank. {contractCaption(form.contract)} The fee defaults to 25% of gross commission. Preview works before the Follow Up Boss owner is filled. The Outlook draft still needs that name.</p>
           <div className="rh-actions">
             <button type="button" className="primary" disabled={locked || !isEmail(form.receivingEmail)} onClick={() => { void preview(); }}>{working ? "Preparing…" : "Preview filled PDF"}</button>
             <button type="button" className="ghost dark" disabled={locked} onClick={reload}>Reload from referral</button>
@@ -271,8 +276,12 @@ export default function Handoff(props: {
         </div>
       ) : (
         <div className="stack">
-          <p className="caption">This is the PDF that will be attached. Check Deborah G. Bly as originating agent, the 25% fee unless you changed it, and the client and receiving agent.</p>
-          {previewUrl ? <iframe className="rh-preview" title="Filled Universal eXp-to-eXp referral form" src={previewUrl} /> : null}
+          <p className="caption">These are the pages that will be attached. Check Deborah G. Bly as originating agent, the 25% fee unless you changed it, and the client and receiving agent.</p>
+          {pdf ? <PdfPreview data={pdf} fallbackUrl={previewUrl} /> : null}
+          <Field label="Bly Team agent (Follow Up Boss owner)" wide>
+            <input value={form.blyAgent} onChange={(e) => edit({ blyAgent: e.target.value })} placeholder="Required before the Outlook draft" />
+          </Field>
+          {!form.blyAgent.trim() ? <p className="caption">Name the Bly Team agent who owns this lead before creating the draft. That name is for the email only. It is not the originating agent on the PDF.</p> : null}
           <p className="rh-cc">To: {form.receivingEmail || "—"} · Cc: {props.cc.join(", ") || "—"}</p>
           {microsoftConfigured()
             ? <p className="caption">{account ? `Microsoft connected as ${account}.` : "Connect Microsoft once. The draft is created in that account’s Outlook Drafts."}</p>

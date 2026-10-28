@@ -8,10 +8,15 @@ import {
 const INK = rgb(0.08, 0.08, 0.08);
 const PAPER = rgb(1, 1, 1);
 
+export function referralTemplateUrl(): string {
+  const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+  return `${base}forms/universal-exp-to-exp-referral-form.pdf`;
+}
+
 export async function loadReferralTemplate(): Promise<ArrayBuffer> {
-  const url = `${import.meta.env.BASE_URL}forms/universal-exp-to-exp-referral-form.pdf`;
+  const url = referralTemplateUrl();
   const res = await fetch(url);
-  if (!res.ok) throw new Error("The referral form template did not load.");
+  if (!res.ok) throw new Error(`The referral form template did not load (${res.status} ${url}).`);
   return res.arrayBuffer();
 }
 

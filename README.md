@@ -35,6 +35,8 @@ Cadence is stored on the row: the first handoff schedules the next touch 14 days
 
 **Form handoff.** Picking a receiving agent opens the Universal eXp-to-eXp form on the detail page. Staff edit the fields, preview the filled 3-page PDF, then create an Outlook **draft** with that PDF attached. The blank template is `public/forms/universal-exp-to-exp-referral-form.pdf` (a flat PDF — text is stamped on, not filled as AcroForm fields). There is no `mailto:` step. A blank compose window is not opened.
 
+The preview draws the three pages in the Hub (PDF.js canvases). It does not use an iframe, which stays blank for blob PDFs in Chrome, Safari, and mobile. Open preview and Download filled PDF remain. The Follow Up Boss owner is required for the Outlook draft email, and preview still runs when that name is empty.
+
 Deborah G. Bly is the originating agent on the PDF (The Bly Team / eXp Realty, LLC, 281-782-5313, team@agentbly.com). The fee defaults to 25% of gross commission. The receiving agent, phone, and email come from the selected card. The email body names the Bly Team agent who owns the Follow Up Boss lead (`fub_owner`) so the receiving agent knows who to follow up with. Cc stays the ISA plus Kevin and Deb.
 
 Creating the draft does **not** mark the referral sent and does not increment `email_count`. Status stays where it was (usually Awaiting pick). Activity shows “Outlook draft created. Not sent yet.” `outlook_draft_at` stores when the draft was created. “I sent it” is still the confirmation after someone sends that draft from Outlook. That is what moves an early referral to Sent and schedules the next touch.

@@ -48,9 +48,11 @@ assert.equal(form.termStart, "2026-10-28");
 assert.equal(form.termEnd, "2027-10-28");
 assert.equal(form.opportunityId, "FUB 987");
 assert.deepEqual(checkedBoxes(form), ["buy", "percent"]);
-assert.equal(validateHandoff(form), null);
-assert.equal(validateHandoff({ ...form, blyAgent: "" }), "Name the Bly Team agent who owns this lead in Follow Up Boss. That name goes in the email, not on the originating-agent line.");
-assert.equal(validateHandoff({ ...form, contract: "" })?.includes("buy"), true);
+assert.equal(validateHandoff(form, "draft"), null);
+assert.equal(validateHandoff(form, "preview"), null);
+assert.equal(validateHandoff({ ...form, blyAgent: "" }, "preview"), null);
+assert.equal(validateHandoff({ ...form, blyAgent: "" }, "draft"), "Name the Bly Team agent who owns this lead in Follow Up Boss. That name goes in the email, not on the originating-agent line.");
+assert.equal(validateHandoff({ ...form, contract: "" }, "preview")?.includes("buy"), true);
 
 const template = readFileSync(new URL("../public/forms/universal-exp-to-exp-referral-form.pdf", import.meta.url));
 const filled = await fillReferralPdf(template, form);
