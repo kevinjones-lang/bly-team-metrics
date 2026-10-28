@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
   if (location.length > 500) return j({ error: "Location is too long." }, 400);
 
   const { agents, live, asOf } = agentsNow();
+  // geocodePlace already tries Nominatim, Open-Meteo, and Photon. This catch is only for an unexpected throw.
   let origin: { lat: number; lng: number; label: string } | null = null;
   try {
     origin = await geocodePlace(location);

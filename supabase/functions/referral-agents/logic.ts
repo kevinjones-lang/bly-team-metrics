@@ -170,7 +170,7 @@ export function optionsNote(tier: AgentTier): string {
     case "ffm_nearest":
       return `No Fast Forward Movement agents within ${FFM_RADIUS_MILES} miles. These are the nearest people on the FFM map. For a closer eXp agent, open the directory links and paste that person if you choose them. The public directory blocks automated lookup, so those profiles stay as links.`;
     case "unplaced":
-      return "That location could not be placed on a map. Try City, ST or a ZIP code. You can still paste an agent below.";
+      return "Could not place this location on a map, so no agent cards were ranked. Try City, ST or a ZIP code, or paste an agent below.";
     default: {
       const _n: never = tier;
       return _n;
@@ -405,7 +405,7 @@ export function buildLookup(p: {
       place: "",
       lat: null,
       lng: null,
-      note: optionsNote("unplaced"),
+      note: `Could not place "${p.query}" on a map, so no agent cards were ranked. Try City, ST or a ZIP code, or paste an agent below.`,
       live: p.live,
       asOf: p.asOf,
       agents: [],
@@ -415,7 +415,7 @@ export function buildLookup(p: {
   const ranked = rankAgents(p.agents, p.origin);
   const empty = ranked.agents.length === 0;
   const note = empty
-    ? "No Fast Forward agents with a map point were available for this location. Use the directory links, then paste an agent if you choose one."
+    ? `Placed "${p.query}" at ${p.origin.label}, but no Fast Forward agents have a map point, so no cards were ranked. Use the directory links or paste an agent.`
     : optionsNote(ranked.tier);
   return {
     tier: empty ? "ffm_nearest" : ranked.tier,

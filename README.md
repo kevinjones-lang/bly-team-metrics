@@ -39,7 +39,7 @@ Cadence is stored on the row: the first handoff schedules the next touch 14 days
 
 **Follow Up Boss lookup.** Optional prefill. Deploy `supabase/functions/referral-fub` and set the Supabase Edge Function secret `FUB_API_KEY` (Follow Up Boss API key). Do not put that key in Vite, `VITE_*`, or this repo. Without the secret the form still saves; lookup returns a clear message. Magic-link or Google sign-in can wait; Slack staff access is the v1 gate.
 
-**Agent options.** On a referral that has a location, the detail page asks the `referral-agents` Edge Function for Fast Forward Movement agents near that place. The function reads a cached copy of the public FFM Google My Map (`mid=1JtTrRiy5GKmzXhCLsLwTaFG4GfR2W51c`, file `supabase/functions/referral-agents/ffm-agents.json`). Pins in the KML are used when the map has them; otherwise the agent’s primary ZIP is a GeoNames centroid ([geonames.org](https://www.geonames.org/), CC-BY 4.0). The referral location is geocoded with Nominatim or, for a ZIP, Zippopotam. No API key.
+**Agent options.** On a referral that has a location, the detail page asks the `referral-agents` Edge Function for Fast Forward Movement agents near that place. The function reads a cached copy of the public FFM Google My Map (`mid=1JtTrRiy5GKmzXhCLsLwTaFG4GfR2W51c`, file `supabase/functions/referral-agents/ffm-agents.json`). Pins in the KML are used when the map has them; otherwise the agent’s primary ZIP is a GeoNames centroid ([geonames.org](https://www.geonames.org/), CC-BY 4.0). The referral location is geocoded with no API key: a ZIP uses Zippopotam; a city tries Nominatim, then the Open-Meteo geocoding API, then Photon. Nominatim often does not answer from Supabase Edge, and a failure there used to return no cards. The later geocoders still place the city. US and Canadian hits are preferred, including the state in the location text.
 
 - Within 20 miles: up to 3 cards, closest first. Selecting one saves the receiving agent and moves `new` / `shortlist` to `awaiting_pick`.
 - None within 20 miles: up to 5 nearest FFM cards, plus links to the [eXp Agent Directory](https://www.exprealty.com/agents-search), the [eXp Hub US Referral Network](https://hub.exprealty.com/connect/group/us-corp-exp-referral-network), and the [Global Referral Platform](https://agents.exprealty.com/). The public directory blocks automated search (reCAPTCHA), so those sources stay links. Paste is still there for an agent you find that way.
@@ -60,11 +60,18 @@ supabase functions deploy referral-agents
 
 The function also re-reads the public KML in the background when an isolate is warm. The committed file is what a cold request uses.
 
-**How to test (not Houston).** Sign in as staff, create a referral with location `Carlsbad, CA`, and open it. Expect up to three Fast Forward cards with a distance, market, trailing-12 volume when the map has it, and an eXp directory link. Select one: the receiving agent and email fill in, the status becomes Awaiting pick, and Open mail app becomes the primary button with that agent on To. A second referral with location `Boulder, CO` has no Fast Forward agent inside 20 miles, so the page shows the five nearest and the directory links. The universal eXp-to-eXp form link and the Follow Up Boss lookup are unchanged.
+**How to test (not Houston).** Sign in as staff. `Carlsbad, CA` is inside the 20-mile Fast Forward radius: expect up to three cards. Select one and Open mail app becomes the primary button with that agent on To. `Dallas, TX` (and `Boulder, CO`) have nobody within 20 miles: expect five nearest cards with distances, not an empty Agent options section. If a location cannot be geocoded at all, the page says no cards were ranked because the place could not be mapped. The universal eXp-to-eXp form link and the Follow Up Boss lookup are unchanged.
+
+After this change, redeploy the function (no new secret):
+
+```bash
+supabase functions deploy referral-agents
+```
 
 Checks:
 
 ```bash
 node --experimental-strip-types scripts/check-referral-logic.ts
 node --experimental-strip-types scripts/check-referral-agents.ts
+node --experimental-strip-types scripts/check-referral-geocode.ts
 ```
