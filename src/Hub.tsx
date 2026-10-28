@@ -26,6 +26,10 @@ export const HUB_TILES: Tile[] = [
   { id: "kahla-sheet", label: "Kahla Preferred sheet", hint: "Zillow Preferred workbook", group: "CRM & leads", href: "https://docs.google.com/spreadsheets/d/11VPtEWP_482Yt6OVWAZkGxkxXcE7nmI4sP_qKMz6t1s" },
   { id: "rec-master", label: "Recruiting Master Tracker", hint: "Google Sheet", group: "Recruiting", href: "https://docs.google.com/spreadsheets/d/18XXe2ap4b6DqUGgRW8GrT8GUceT7dt2k4VgyglQZpPo/edit" },
   { id: "calculators", label: "Calculators", hint: "Commission split & business plan", group: "Tools", href: "https://kevinajones.github.io/bly-team-calculators/" },
+  { id: "mortgage-calc", label: "Mortgage Calculator", hint: "Team mortgage calculator", group: "Tools", href: "https://kevinajones.github.io/team-mortgage-calculator/" },
+  { id: "tv-listings", label: "Bly TV Listings", hint: "Listing TV / media board", group: "Tools", href: "https://kevinjones-lang.github.io/bly-tv-listings/" },
+  { id: "agent-training", label: "Agent Training", hint: "New agent training", group: "Tools", href: "https://bly-agent-training.vercel.app/#/agent" },
+  { id: "video-library", label: "Video Library", hint: "Video classes (Slack sign-in)", group: "Tools", href: "https://bly-video-library.kevin-jones-cd2.workers.dev" },
 ];
 
 const GROUPS = ["Apps", "Metrics", "CRM & leads", "Recruiting", "Tools"];
