@@ -49,6 +49,14 @@ function firstValue(list: unknown): string {
   return "";
 }
 
+function ownerName(assignedTo: unknown): string {
+  if (typeof assignedTo === "string") return assignedTo.trim();
+  if (assignedTo && typeof assignedTo === "object" && "name" in assignedTo && typeof (assignedTo as { name: unknown }).name === "string") {
+    return (assignedTo as { name: string }).name.trim();
+  }
+  return "";
+}
+
 function locationOf(addresses: unknown): string {
   if (!Array.isArray(addresses) || !addresses[0] || typeof addresses[0] !== "object") return "";
   const a = addresses[0] as { city?: unknown; state?: unknown; street?: unknown };
@@ -96,6 +104,7 @@ Deno.serve(async (req) => {
     phones?: unknown;
     addresses?: unknown;
     stage?: unknown;
+    assignedTo?: unknown;
   };
   const name = typeof person.name === "string" && person.name.trim()
     ? person.name.trim()
@@ -109,6 +118,7 @@ Deno.serve(async (req) => {
       location: locationOf(person.addresses),
       url: canonicalUrl(id, raw),
       stage: typeof person.stage === "string" ? person.stage : "",
+      owner: ownerName(person.assignedTo),
     },
   });
 });

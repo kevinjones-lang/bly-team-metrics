@@ -47,10 +47,14 @@ assert.ok(mail.includes("subject=Bly%20Team%20referral%20%E2%80%94%20Ada"));
 assert.ok(!mail.includes("+"));
 
 assert.equal(handoffSubject({ client_name: "Ada", side: "buyer", location: "Austin, TX" }), "Bly Team referral — Ada · Buyer · Austin, TX");
-const body = handoffBody({ client_name: "Ada", client_email: "a@b.co", client_phone: "3465550100", side: "seller", location: "Austin", receiving_agent: "Grace Hopper", recordUrl: referralRecordUrl("abc") });
+const body = handoffBody({ client_name: "Ada", client_email: "a@b.co", client_phone: "3465550100", side: "seller", location: "Austin", receiving_agent: "Grace Hopper", bly_agent: "Kevin Jones", recordUrl: referralRecordUrl("abc") });
 assert.ok(body.startsWith("Hi Grace,"));
 assert.ok(body.includes("https://kevinjones-lang.github.io/bly-team-metrics/#/referrals/abc"));
-assert.ok(body.includes("https://drive.google.com/file/d/1tbI2DtYasnoBMCY-pNzoEMI8UzLikQJp/view"));
+assert.ok(body.includes("Bly Team agent for follow-up: Kevin Jones"));
+assert.ok(body.includes("filled Universal eXp-to-eXp Agent Referral Form is attached"));
+assert.ok(body.includes("Deborah G. Bly"));
+assert.equal(body.includes("drive.google.com"), false);
+assert.equal(body.includes("mailto:"), false);
 assert.equal(referralNewUrl(), "https://kevinjones-lang.github.io/bly-team-metrics/#/referrals/new");
 
 assert.equal(validateDraft({ client_name: "", client_email: "a@b.co", client_phone: "3465550100", side: "" }), "Name is required.");
