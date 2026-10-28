@@ -1,6 +1,5 @@
 // Pure referral rules: URLs, handoff copy, shortlist parsing, FUB id parsing.
 // Status cadence (14 days, then 30) and the six-month nurture move are enforced in Postgres.
-import { EXP_DIRECTORY_URL, EXP_GLOBAL_REFERRAL_URL, EXP_HUB_REFERRAL_URL, FFM_MAP_ID } from "../../supabase/functions/referral-agents/logic.ts";
 
 export const STATUSES = ["new", "shortlist", "awaiting_pick", "sent", "connected", "monthly_check", "closed", "nurture"] as const;
 export type Status = (typeof STATUSES)[number];
@@ -11,14 +10,6 @@ export type Side = (typeof SIDES)[number];
 export const REFERRAL_SITE = "https://kevinjones-lang.github.io/bly-team-metrics/";
 /** Public Bly addresses. Override at build time with VITE_REFERRAL_CC (comma-separated). These are not API secrets. */
 export const DEFAULT_HANDOFF_CC = ["Kevin.Jones@AgentBly.com", "Deb@AgentBly.com"] as const;
-
-export const AGENT_SOURCES: { name: string; detail: string; href?: string }[] = [
-  { name: "FFM map", detail: "Fast Forward Movement agents within 20 miles are the cards on the referral. This opens the same public map.", href: `https://www.google.com/maps/d/viewer?mid=${FFM_MAP_ID}` },
-  { name: "eXp Agent Directory", detail: "Public directory of eXp Realty agents in the US and Canada. Search here when no Fast Forward agent is close enough. The directory blocks automated lookups, so this stays a link.", href: EXP_DIRECTORY_URL },
-  { name: "eXp Hub — US Referral Network", detail: "Workplace group for the US referral network. Sign in, then paste the agent you choose.", href: EXP_HUB_REFERRAL_URL },
-  { name: "Global Referral Platform", detail: "eXp agent directory and referral platform. Sign in required.", href: EXP_GLOBAL_REFERRAL_URL },
-  { name: "eXp Agent Search", detail: "eXp Agent Portal (sign in with Okta) → Agent Search. Filter by miles, license state, Mentor, and ICON." },
-];
 
 export type ShortlistEntry = { name: string; email: string; raw: string };
 
@@ -252,13 +243,6 @@ export function handoffBody(p: {
     "The Bly Team",
   );
   return lines.join("\n");
-}
-
-/** mailto cannot attach a PDF. The handoff creates an Outlook draft instead of using this. */
-export function buildMailto(p: { to: string; cc: string[]; subject: string; body: string }): string {
-  const parts = [`subject=${encodeURIComponent(p.subject)}`, `body=${encodeURIComponent(p.body)}`];
-  if (p.cc.length) parts.unshift(`cc=${p.cc.map((e) => encodeURIComponent(e)).join(",")}`);
-  return `mailto:${encodeURIComponent(p.to.trim())}?${parts.join("&")}`;
 }
 
 export function chicagoToday(now = new Date()): string {

@@ -33,9 +33,11 @@ The new-referral link, if a field should open a blank form, is `https://kevinjon
 
 Cadence is stored on the row: the first handoff schedules the next touch 14 days out (biweekly). Moving the status to monthly check schedules every 30 days, and a monthly cadence does not drop back to biweekly. Opening the board calls `referrals_apply_silence()`, which moves any referral with no touch for six months to nurture. v1 has no cron.
 
-**Form handoff.** Picking a receiving agent opens the Universal eXp-to-eXp form on the detail page. Staff edit the fields, preview the filled 3-page PDF, then create an Outlook **draft** with that PDF attached. The blank template is `public/forms/universal-exp-to-exp-referral-form.pdf` (a flat PDF — text is stamped on, not filled as AcroForm fields). There is no `mailto:` step. A blank compose window is not opened.
+**Form handoff.** Picking a receiving agent with an email opens the Universal eXp-to-eXp form on the detail page. Staff edit the fields, preview the filled 3-page PDF, then create an Outlook **draft** with that PDF attached. The blank template is `public/forms/universal-exp-to-exp-referral-form.pdf` (a flat PDF — text is stamped on, not filled as AcroForm fields). There is no `mailto:` step. A blank compose window is not opened.
 
 The preview draws the three pages in the Hub (PDF.js canvases). It does not use an iframe, which stays blank for blob PDFs in Chrome, Safari, and mobile. Open preview and Download filled PDF remain. The Follow Up Boss owner is required for the Outlook draft email, and preview still runs when that name is empty.
+
+On the detail page the referral form stays hidden until a receiving agent email is on the record, from a card, a pasted line, or the email field. The Bly Team agent who owns the Follow Up Boss lead is one field, on the receiving agent panel, and it is still required only when creating the Outlook draft. Directory links are listed once, with the agent cards. Start a referral from the New referral tab; the ops hub tile still opens Referral Hub.
 
 Deborah G. Bly is the originating agent on the PDF (The Bly Team / eXp Realty, LLC, 281-782-5313, team@agentbly.com). The fee defaults to 25% of gross commission. The receiving agent, phone, and email come from the selected card. The email body names the Bly Team agent who owns the Follow Up Boss lead (`fub_owner`) so the receiving agent knows who to follow up with. Cc stays the ISA plus Kevin and Deb.
 
@@ -62,7 +64,7 @@ supabase secrets set AZURE_TENANT_ID=... AZURE_CLIENT_ID=... AZURE_CLIENT_SECRET
 
 - Within 20 miles: up to 3 cards, closest first. Selecting one saves the receiving agent and moves `new` / `shortlist` to `awaiting_pick`.
 - None within 20 miles: up to 5 nearest FFM cards, plus links to the [eXp Agent Directory](https://www.exprealty.com/agents-search), the [eXp Hub US Referral Network](https://hub.exprealty.com/connect/group/us-corp-exp-referral-network), and the [Global Referral Platform](https://agents.exprealty.com/). The public directory blocks automated search (reCAPTCHA), so those sources stay links. Paste is still there for an agent you find that way.
-- The form preview stays closed until a card is selected or a receiving-agent email is entered. Cc is still the ISA plus Kevin and Deb. The card’s phone is saved on the referral and printed on the form. Receiving brokerage defaults to eXp Realty, LLC and can be edited.
+- The referral form stays off the page until a card is selected or a receiving-agent email is entered. Cc is still the ISA plus Kevin and Deb. The card’s phone is saved on the referral and printed on the form. Receiving brokerage defaults to eXp Realty, LLC and can be edited.
 
 Deploy with the other referral function. No new secret:
 
