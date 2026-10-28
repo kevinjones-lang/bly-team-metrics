@@ -1,4 +1,4 @@
-// Pure referral rules: URLs, mailto handoff, shortlist parsing, FUB id parsing.
+// Pure referral rules: URLs, handoff copy, shortlist parsing, FUB id parsing.
 // Status cadence (14 days, then 30) and the six-month nurture move are enforced in Postgres.
 import { EXP_DIRECTORY_URL, EXP_GLOBAL_REFERRAL_URL, EXP_HUB_REFERRAL_URL, FFM_MAP_ID } from "../../supabase/functions/referral-agents/logic.ts";
 
@@ -8,7 +8,6 @@ export type Status = (typeof STATUSES)[number];
 export const SIDES = ["buyer", "seller", "lease"] as const;
 export type Side = (typeof SIDES)[number];
 
-export const EXP_FORM_URL = "https://drive.google.com/file/d/1tbI2DtYasnoBMCY-pNzoEMI8UzLikQJp/view";
 export const REFERRAL_SITE = "https://kevinjones-lang.github.io/bly-team-metrics/";
 /** Public Bly addresses. Override at build time with VITE_REFERRAL_CC (comma-separated). These are not API secrets. */
 export const DEFAULT_HANDOFF_CC = ["Kevin.Jones@AgentBly.com", "Deb@AgentBly.com"] as const;
@@ -222,9 +221,12 @@ export function handoffBody(p: {
   timeline?: string | null;
   notes?: string | null;
   receiving_agent?: string | null;
+  /** Bly Team agent who owns the lead in Follow Up Boss. Not the originating agent on the PDF. */
+  bly_agent?: string | null;
   recordUrl: string;
 }): string {
   const first = p.receiving_agent?.trim().split(/\s+/)[0];
+  const owner = p.bly_agent?.trim();
   const who = p.side ? `${p.client_name.trim()}, a ${sideLabel(p.side).toLowerCase()} client` : p.client_name.trim();
   const where = p.location?.trim() ? ` in ${p.location.trim()}` : "";
   const lines = [
@@ -238,10 +240,11 @@ export function handoffBody(p: {
   ];
   if (p.timeline?.trim()) lines.push(`Timeline: ${p.timeline.trim()}`);
   if (p.notes?.trim()) lines.push(`Notes: ${p.notes.trim()}`);
+  if (owner) lines.push("", `Bly Team agent for follow-up: ${owner}. That agent owns this lead.`);
   lines.push(
     "",
     `Referral record: ${p.recordUrl}`,
-    `Universal eXp-to-eXp form: ${EXP_FORM_URL}`,
+    "The filled Universal eXp-to-eXp Agent Referral Form is attached. Deborah G. Bly is the originating agent on that form.",
     "",
     "Please confirm once you have connected with them.",
     "",
@@ -251,6 +254,7 @@ export function handoffBody(p: {
   return lines.join("\n");
 }
 
+/** mailto cannot attach a PDF. The handoff creates an Outlook draft instead of using this. */
 export function buildMailto(p: { to: string; cc: string[]; subject: string; body: string }): string {
   const parts = [`subject=${encodeURIComponent(p.subject)}`, `body=${encodeURIComponent(p.body)}`];
   if (p.cc.length) parts.unshift(`cc=${p.cc.map((e) => encodeURIComponent(e)).join(",")}`);

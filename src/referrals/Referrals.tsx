@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useAgent } from "../agent";
 import {
-  AGENT_SOURCES, EXP_FORM_URL, SIDES, STATUSES, blankToNull, buildMailto, ensureShortlistLine, formatDay, formatWhen, handoffBody, handoffCc, handoffSubject,
+  AGENT_SOURCES, SIDES, STATUSES, blankToNull, ensureShortlistLine, formatDay, formatWhen, handoffCc,
   fubFields, humanError, isEmail, isSide, isStatus, isTouchDue, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
   type Side, type Status,
-} from "./logic";
+} from "./logic.ts";
+import { DEFAULT_RECEIVING_BROKERAGE, sideForContract } from "./formModel.ts";
 import { formatShortlistLine } from "../../supabase/functions/referral-agents/logic.ts";
-import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markSent, updateReferral, type AgentLookup, type AgentOption, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
+import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markOutlookDraft, markSent, updateReferral, type AgentLookup, type AgentOption, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
 import AgentOptions from "./AgentOptions";
 import "./referrals.css";
+
+const Handoff = lazy(() => import("./Handoff.tsx"));
 
 const CC_ENV = import.meta.env.VITE_REFERRAL_CC as string | undefined;
 
@@ -44,12 +47,16 @@ type Draft = {
   shortlist: string;
   receiving_agent: string;
   receiving_agent_email: string;
+  receiving_agent_phone: string;
+  receiving_brokerage: string;
+  fub_owner: string;
   isa_email: string;
 };
 
 const EMPTY: Draft = {
   client_name: "", client_email: "", client_phone: "", location: "", side: "", timeline: "", notes: "",
-  fub_person_id: "", fub_url: "", shortlist: "", receiving_agent: "", receiving_agent_email: "", isa_email: "",
+  fub_person_id: "", fub_url: "", shortlist: "", receiving_agent: "", receiving_agent_email: "",
+  receiving_agent_phone: "", receiving_brokerage: "", fub_owner: "", isa_email: "",
 };
 
 function draftFrom(row: Referral): Draft {
@@ -66,6 +73,9 @@ function draftFrom(row: Referral): Draft {
     shortlist: row.shortlist ?? "",
     receiving_agent: row.receiving_agent ?? "",
     receiving_agent_email: row.receiving_agent_email ?? "",
+    receiving_agent_phone: row.receiving_agent_phone ?? "",
+    receiving_brokerage: row.receiving_brokerage ?? "",
+    fub_owner: row.fub_owner ?? "",
     isa_email: row.isa_email ?? "",
   };
 }
@@ -82,6 +92,9 @@ function toWrite(d: Draft, withHandoff: boolean): ReferralWrite {
     notes: blankToNull(d.notes),
     fub_person_id: blankToNull(d.fub_person_id),
     fub_url: blankToNull(d.fub_url),
+    fub_owner: blankToNull(d.fub_owner),
+    receiving_agent_phone: blankToNull(d.receiving_agent_phone),
+    receiving_brokerage: blankToNull(d.receiving_brokerage),
   };
   if (!withHandoff) return base;
   return {
@@ -102,6 +115,7 @@ function mergePrefill(d: Draft, person: FubPrefill): Draft {
     location: d.location.trim() ? d.location : person.location,
     fub_person_id: person.id || d.fub_person_id,
     fub_url: person.url || d.fub_url,
+    fub_owner: d.fub_owner.trim() ? d.fub_owner : person.owner,
   };
 }
 
@@ -217,7 +231,7 @@ function NewReferral() {
   return (
     <form className="section" onSubmit={onSubmit}>
       <h2 className="serif">New referral</h2>
-      <p className="caption">Name, email, and phone are required. After you save, agent profiles near the location are the next step. The mail handoff stays closed until one is selected.</p>
+      <p className="caption">Name, email, and phone are required. After you save, agent profiles near the location are the next step. The form handoff stays closed until one is selected.</p>
       {err ? <p className="rh-error" role="alert">{err}</p> : null}
       <ClientFields draft={draft} set={set} />
       <FubLookup draft={draft} set={set} onFound={(person) => setDraft((d) => mergePrefill(d, person))} />
@@ -289,6 +303,7 @@ function eventText(ev: ReferralEvent): string {
     return `Status ${from} to ${to}`;
   }
   if (ev.kind === "email_sent") return `Handoff email logged (count ${String(detail.email_count ?? "")})`;
+  if (ev.kind === "draft_created") return "Outlook draft created. Not sent yet.";
   return ev.kind;
 }
 
@@ -342,11 +357,19 @@ function Detail({ id }: { id: string }) {
     setEvents(await listEvents(id));
   });
 
-  const choose = (agent: { name: string; email: string; place?: string; distanceLabel?: string; level?: string }) => enqueue(async () => {
+  const choose = (agent: { name: string; email: string; phone?: string; place?: string; distanceLabel?: string; level?: string }) => enqueue(async () => {
     const email = isEmail(agent.email) ? agent.email.trim() : "";
+    const phone = agent.phone?.trim() ?? "";
     const line = formatShortlistLine({ name: agent.name, email, place: agent.place, distanceLabel: agent.distanceLabel, level: agent.level });
     const shortlist = ensureShortlistLine(draftRef.current.shortlist, line);
-    draftRef.current = { ...draftRef.current, receiving_agent: agent.name, receiving_agent_email: email, shortlist };
+    draftRef.current = {
+      ...draftRef.current,
+      receiving_agent: agent.name,
+      receiving_agent_email: email,
+      receiving_agent_phone: phone,
+      receiving_brokerage: DEFAULT_RECEIVING_BROKERAGE,
+      shortlist,
+    };
     setDraft(draftRef.current);
     const status = statusAfterPick(statusRef.current);
     setBusy(true); setErr(""); setNote("");
@@ -354,6 +377,8 @@ function Detail({ id }: { id: string }) {
       const patch: Partial<ReferralWrite> & { status?: Status } = {
         receiving_agent: blankToNull(agent.name),
         receiving_agent_email: email ? email : null,
+        receiving_agent_phone: blankToNull(phone),
+        receiving_brokerage: DEFAULT_RECEIVING_BROKERAGE,
         shortlist: shortlist.trim() ? shortlist.trim() : null,
       };
       if (status) patch.status = status;
@@ -365,8 +390,8 @@ function Detail({ id }: { id: string }) {
       setDraft(saved);
       setEvents(await listEvents(id));
       setNote(email
-        ? `${agent.name} is the receiving agent. Open the mail app when you are ready to send.`
-        : `${agent.name} is selected. Add an email before opening the mail app.`);
+        ? `${agent.name} is the receiving agent. Edit the referral form when you are ready. The handoff creates an Outlook draft with the filled PDF attached.`
+        : `${agent.name} is selected. Add an email before editing the referral form.`);
     } catch (e) {
       setErr(humanError(e));
     } finally {
@@ -378,6 +403,9 @@ function Detail({ id }: { id: string }) {
     const problem = validateDraft(draft);
     if (problem) { setErr(problem); return; }
     if (draft.receiving_agent_email.trim() && !isEmail(draft.receiving_agent_email)) { setErr("Receiving agent email is not valid."); return; }
+    if (draft.receiving_agent_phone.trim().length > 40) { setErr("Receiving agent phone is too long."); return; }
+    if (draft.receiving_brokerage.trim().length > 200) { setErr("Receiving brokerage is too long."); return; }
+    if (draft.fub_owner.trim().length > 200) { setErr("Bly Team agent name is too long."); return; }
     if (draft.isa_email.trim() && !isEmail(draft.isa_email)) { setErr("ISA email is not valid."); return; }
     setBusy(true); setErr(""); setNote("");
     try {
@@ -432,22 +460,6 @@ function Detail({ id }: { id: string }) {
 
   const recordUrl = referralRecordUrl(row.id);
   const cc = handoffCc(CC_ENV, draft.isa_email, draft.receiving_agent_email);
-  const mailto = isEmail(draft.receiving_agent_email) ? buildMailto({
-    to: draft.receiving_agent_email.trim(),
-    cc,
-    subject: handoffSubject({ client_name: draft.client_name, location: draft.location, side: draft.side || null }),
-    body: handoffBody({
-      client_name: draft.client_name,
-      client_email: draft.client_email,
-      client_phone: draft.client_phone,
-      location: draft.location,
-      side: draft.side || null,
-      timeline: draft.timeline,
-      notes: draft.notes,
-      receiving_agent: draft.receiving_agent,
-      recordUrl,
-    }),
-  }) : "";
   const entries = parseShortlist(draft.shortlist);
 
   return (
@@ -456,7 +468,7 @@ function Detail({ id }: { id: string }) {
       {note ? <p className="rh-note">{note}</p> : null}
       <section className="section">
         <h2 className="serif">{row.client_name}</h2>
-        <p className="caption">Emails {row.email_count}{row.last_email_at ? ` · last email ${formatWhen(row.last_email_at)}` : ""} · cadence {row.cadence} · next touch {formatDay(row.next_touch_on)}</p>
+        <p className="caption">Emails {row.email_count}{row.last_email_at ? ` · last email ${formatWhen(row.last_email_at)}` : ""}{row.outlook_draft_at ? ` · Outlook draft ${formatWhen(row.outlook_draft_at)} (not sent)` : ""} · cadence {row.cadence} · next touch {formatDay(row.next_touch_on)}</p>
         <div className="rh-status" role="group" aria-label="Status">
           {STATUSES.map((s) => (
             <button key={s} type="button" className={row.status === s ? "on" : ""} aria-pressed={row.status === s} disabled={busy} onClick={() => setStatus(s)}>{statusLabel(s)}</button>
@@ -484,12 +496,15 @@ function Detail({ id }: { id: string }) {
           <div className="rh-actions"><button type="button" className="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button></div>
         </section>
         <section className="section">
-          <h2 className="serif">Email handoff</h2>
-          <p className="caption">Open mail app stays quiet until a card is selected or you enter the receiving agent here. To is that agent. Cc is the ISA, Kevin, and Deb. Then confirm with “I sent it”.</p>
+          <h2 className="serif">Receiving agent</h2>
+          <p className="caption">Pick a card above, or enter the agent here. The form below is filled from this agent. Cc is the ISA, Kevin, and Deb. Creating an Outlook draft does not mark the referral sent. Use “I sent it” after you send the draft from Outlook.</p>
           <div className="rh-fields">
             <Field label="Receiving agent"><input value={draft.receiving_agent} onChange={(e) => set({ receiving_agent: e.target.value })} /></Field>
             <Field label="Receiving agent email"><input type="email" value={draft.receiving_agent_email} onChange={(e) => set({ receiving_agent_email: e.target.value })} /></Field>
+            <Field label="Receiving agent phone"><input value={draft.receiving_agent_phone} onChange={(e) => set({ receiving_agent_phone: e.target.value })} /></Field>
+            <Field label="Receiving brokerage"><input value={draft.receiving_brokerage} onChange={(e) => set({ receiving_brokerage: e.target.value })} placeholder={DEFAULT_RECEIVING_BROKERAGE} /></Field>
             <Field label="ISA email (Cc)"><input type="email" value={draft.isa_email} onChange={(e) => set({ isa_email: e.target.value })} placeholder="Optional" /></Field>
+            <Field label="Bly Team agent (Follow Up Boss owner)"><input value={draft.fub_owner} onChange={(e) => set({ fub_owner: e.target.value })} placeholder="Who owns this lead" /></Field>
           </div>
           <details className="rh-sources">
             <summary>Paste a shortlist instead</summary>
@@ -514,11 +529,9 @@ function Detail({ id }: { id: string }) {
           </details>
           <p className="rh-cc">Cc: {cc.join(", ") || "—"}</p>
           <div className="rh-actions">
-            {mailto ? <a className="primary" href={mailto}>Open mail app</a> : <button type="button" className="ghost dark" disabled>Open mail app</button>}
-            <a className="ghost dark" href={EXP_FORM_URL} target="_blank" rel="noopener noreferrer">Universal eXp-to-eXp form</a>
-            <button type="button" className="ghost dark" disabled={busy || !mailto} onClick={sent}>I sent it</button>
+            <button type="button" className="ghost dark" disabled={busy || !isEmail(draft.receiving_agent_email)} onClick={sent}>I sent it</button>
           </div>
-          {!mailto ? <p className="caption">Pick an agent card, or enter a receiving agent email, before opening the mail app.</p> : null}
+          {!isEmail(draft.receiving_agent_email) ? <p className="caption">Pick an agent card, or enter a receiving agent email, before the form handoff.</p> : <p className="caption">“I sent it” is only for after the Outlook draft is actually sent. It logs the email and moves an early referral to Sent.</p>}
           <h3 className="serif">Follow Up Boss field</h3>
           <p className="caption">Paste this into the custom field <b>Bly Team Referral Hub</b>. New referrals start at <a href={referralNewUrl()}>{referralNewUrl()}</a>.</p>
           <div className="rh-linkrow">
@@ -529,6 +542,63 @@ function Detail({ id }: { id: string }) {
           </div>
         </section>
       </div>
+      <Suspense fallback={<p className="caption">Loading the referral form…</p>}>
+      <Handoff
+        seed={{
+          clientName: draft.client_name,
+          clientEmail: draft.client_email,
+          clientPhone: draft.client_phone,
+          location: draft.location,
+          side: draft.side || null,
+          timeline: draft.timeline,
+          notes: draft.notes,
+          fubPersonId: draft.fub_person_id,
+          referralId: row.id,
+          receivingAgent: draft.receiving_agent,
+          receivingEmail: draft.receiving_agent_email,
+          receivingPhone: draft.receiving_agent_phone,
+          receivingBrokerage: draft.receiving_brokerage,
+          blyAgent: draft.fub_owner,
+        }}
+        cc={cc}
+        recordUrl={recordUrl}
+        location={draft.location}
+        timeline={draft.timeline}
+        notes={draft.notes}
+        busy={busy}
+        draftAt={row.outlook_draft_at}
+        draftLink={row.outlook_draft_web_link}
+        onPersist={async (form) => {
+          const side = sideForContract(form.contract);
+          const next = await updateReferral(id, toWrite({
+            ...draftRef.current,
+            client_name: form.clientName,
+            client_email: form.clientEmail,
+            client_phone: form.clientPhone,
+            side: side ?? "",
+            receiving_agent: form.receivingAgent,
+            receiving_agent_email: form.receivingEmail,
+            receiving_agent_phone: form.receivingPhone,
+            receiving_brokerage: form.receivingBrokerage,
+            fub_owner: form.blyAgent,
+          }, true));
+          statusRef.current = next.status;
+          const saved = draftFrom(next);
+          draftRef.current = saved;
+          setRow(next);
+          setDraft(saved);
+        }}
+        onDraftRecorded={async (webLink) => {
+          const next = await markOutlookDraft(id, webLink);
+          statusRef.current = next.status;
+          const saved = draftFrom(next);
+          draftRef.current = saved;
+          setRow(next);
+          setDraft(saved);
+          setEvents(await listEvents(id));
+        }}
+      />
+      </Suspense>
       <section className="section">
         <h2 className="serif">Activity</h2>
         {events.length === 0 ? <p className="caption">No activity yet.</p> : (
@@ -553,7 +623,7 @@ export default function Referrals() {
       <div className="rh-top">
         <div>
           <h1 className="page-title serif">Referral Hub</h1>
-          <p className="summary">Out-of-area referrals for The Bly Team. Create a record, pick an agent from the profiles near the location, then hand it off by email.</p>
+          <p className="summary">Out-of-area referrals for The Bly Team. Create a record, pick an agent from the profiles near the location, then hand it off as an Outlook draft with the filled referral form attached.</p>
         </div>
         <a className="primary" href={href("#/referrals/new")}>New referral</a>
       </div>

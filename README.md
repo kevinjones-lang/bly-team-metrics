@@ -21,7 +21,7 @@ Out-of-area referral workspace for staff, inside this site (Slack sign-in, same 
 | `#/hub` | Ops hub. Referral Hub is a tile next to the other applets. |
 | `#/referrals` and `#/referrals/board` | Admin board. Statuses: `new` → `shortlist` → `awaiting_pick` → `sent` → `connected` → `monthly_check` → `closed`, plus `nurture`. |
 | `#/referrals/new` | New referral. Optional `?fub=` person id or Follow Up Boss URL prefills when the Edge Function is configured. |
-| `#/referrals/<id>` | Detail, agent option cards, and email handoff. |
+| `#/referrals/<id>` | Detail, agent option cards, and the filled-form handoff. |
 
 **Follow Up Boss custom field `Bly Team Referral Hub`.** Paste the record’s GitHub Pages link:
 
@@ -33,7 +33,24 @@ The new-referral link, if a field should open a blank form, is `https://kevinjon
 
 Cadence is stored on the row: the first handoff schedules the next touch 14 days out (biweekly). Moving the status to monthly check schedules every 30 days, and a monthly cadence does not drop back to biweekly. Opening the board calls `referrals_apply_silence()`, which moves any referral with no touch for six months to nurture. v1 has no cron.
 
-**Email handoff.** “Open mail app” is a `mailto:` with the receiving agent on To. Cc is the ISA on that referral, plus Kevin and Deb. “I sent it” increments `email_count` and `last_email_at`. The universal eXp-to-eXp form is the Drive file linked from the detail page.
+**Form handoff.** Picking a receiving agent opens the Universal eXp-to-eXp form on the detail page. Staff edit the fields, preview the filled 3-page PDF, then create an Outlook **draft** with that PDF attached. The blank template is `public/forms/universal-exp-to-exp-referral-form.pdf` (a flat PDF — text is stamped on, not filled as AcroForm fields). There is no `mailto:` step. A blank compose window is not opened.
+
+Deborah G. Bly is the originating agent on the PDF (The Bly Team / eXp Realty, LLC, 281-782-5313, team@agentbly.com). The fee defaults to 25% of gross commission. The receiving agent, phone, and email come from the selected card. The email body names the Bly Team agent who owns the Follow Up Boss lead (`fub_owner`) so the receiving agent knows who to follow up with. Cc stays the ISA plus Kevin and Deb.
+
+Creating the draft does **not** mark the referral sent and does not increment `email_count`. Status stays where it was (usually Awaiting pick). Activity shows “Outlook draft created. Not sent yet.” `outlook_draft_at` stores when the draft was created. “I sent it” is still the confirmation after someone sends that draft from Outlook. That is what moves an early referral to Sent and schedules the next touch.
+
+The draft is created in one of two places:
+
+1. **Staff Outlook (preferred).** Set the GitHub Actions secrets `VITE_MICROSOFT_CLIENT_ID` and, for a single-tenant app, `VITE_MICROSOFT_TENANT_ID`. These are a public SPA client id and tenant id, not secrets in the Azure sense, but they are build-time config. Register a Microsoft Entra **single-page application** with delegated `Mail.ReadWrite` and `User.Read`, and redirect URIs:
+   - `https://kevinjones-lang.github.io/bly-team-metrics/microsoft-auth.html`
+   - `http://localhost:5173/bly-team-metrics/microsoft-auth.html` for local preview
+   Staff click **Connect Microsoft**, then **Create Outlook draft**. The draft lands in that person’s Drafts folder. The filled PDF is attached in a second Graph call; if the attachment is rejected, the empty draft is deleted.
+2. **Team mailbox.** If the Vite client id is empty, the button calls the `referral-outlook` Edge Function. Set Supabase secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and `OUTLOOK_MAILBOX` (the mailbox UPN that should own the draft). The app registration is a confidential client with application permission `Mail.ReadWrite`. Limit it to that mailbox with an Exchange application access policy. The function creates a draft and attaches the PDF. It does not send. Until those secrets exist, the button explains what is missing and does not fall back to a blank email.
+
+```bash
+supabase functions deploy referral-outlook
+supabase secrets set AZURE_TENANT_ID=... AZURE_CLIENT_ID=... AZURE_CLIENT_SECRET=... OUTLOOK_MAILBOX=team@agentbly.com
+```
 
 **Cc addresses.** Not a secret. Defaults are `Kevin.Jones@AgentBly.com` and `Deb@AgentBly.com`. Set the optional GitHub Actions secret `VITE_REFERRAL_CC` to a comma-separated list to override them at build time. An empty value keeps the defaults.
 
@@ -43,7 +60,7 @@ Cadence is stored on the row: the first handoff schedules the next touch 14 days
 
 - Within 20 miles: up to 3 cards, closest first. Selecting one saves the receiving agent and moves `new` / `shortlist` to `awaiting_pick`.
 - None within 20 miles: up to 5 nearest FFM cards, plus links to the [eXp Agent Directory](https://www.exprealty.com/agents-search), the [eXp Hub US Referral Network](https://hub.exprealty.com/connect/group/us-corp-exp-referral-network), and the [Global Referral Platform](https://agents.exprealty.com/). The public directory blocks automated search (reCAPTCHA), so those sources stay links. Paste is still there for an agent you find that way.
-- “Open mail app” stays disabled until a card is selected or a receiving-agent email is entered. Cc is still the ISA plus Kevin and Deb.
+- The form preview stays closed until a card is selected or a receiving-agent email is entered. Cc is still the ISA plus Kevin and Deb. The card’s phone is saved on the referral and printed on the form. Receiving brokerage defaults to eXp Realty, LLC and can be edited.
 
 Deploy with the other referral function. No new secret:
 
@@ -60,7 +77,9 @@ supabase functions deploy referral-agents
 
 The function also re-reads the public KML in the background when an isolate is warm. The committed file is what a cold request uses.
 
-**How to test (not Houston).** Sign in as staff. `Carlsbad, CA` is inside the 20-mile Fast Forward radius: expect up to three cards. Select one and Open mail app becomes the primary button with that agent on To. `Dallas, TX` (and `Boulder, CO`) have nobody within 20 miles: expect five nearest cards with distances, not an empty Agent options section. If a location cannot be geocoded at all, the page says no cards were ranked because the place could not be mapped. The universal eXp-to-eXp form link and the Follow Up Boss lookup are unchanged.
+**How to test (not Houston).** Sign in as staff. `Carlsbad, CA` is inside the 20-mile Fast Forward radius: expect up to three cards. Select one and the referral form opens with that agent as the receiving agent and Deborah G. Bly as the originating agent. Preview the PDF, then Create Outlook draft. With `VITE_MICROSOFT_CLIENT_ID` set, Connect Microsoft first; the draft is in that user’s Outlook, with the filled PDF attached, and the referral stays Awaiting pick. Without the client id, the same button calls `referral-outlook` and names the team mailbox when the draft is created. `Dallas, TX` (and `Boulder, CO`) have nobody within 20 miles: expect five nearest cards with distances, not an empty Agent options section. If a location cannot be geocoded at all, the page says no cards were ranked because the place could not be mapped.
+
+`referral-fub` now also returns the Follow Up Boss `assignedTo` name as `owner`, stored on the referral as `fub_owner` and written into the email body. Redeploy that function after pulling this change. No new FUB secret.
 
 After this change, redeploy the function (no new secret):
 
@@ -72,6 +91,9 @@ Checks:
 
 ```bash
 node --experimental-strip-types scripts/check-referral-logic.ts
+node --experimental-strip-types scripts/check-referral-form.ts
 node --experimental-strip-types scripts/check-referral-agents.ts
 node --experimental-strip-types scripts/check-referral-geocode.ts
 ```
+
+Migration `supabase/migrations/20261028194500_referral_outlook_draft.sql` adds `fub_owner`, `receiving_agent_phone`, `receiving_brokerage`, `outlook_draft_at`, and `outlook_draft_web_link`, and logs a `draft_created` event. It is already applied on Agent Advantage Academy. Do not run it a second time there.
