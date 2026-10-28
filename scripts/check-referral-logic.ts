@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
-  STATUSES, buildMailto, ensureShortlistLine, fubFields, handoffBody, handoffCc, handoffSubject, isTouchDue, parseFubPersonId, parseShortlist,
+  STATUSES, ensureShortlistLine, fubFields, handoffBody, handoffCc, handoffSubject, isTouchDue, parseFubPersonId, parseShortlist,
   referralNewUrl, referralRecordUrl, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
 } from "../src/referrals/logic.ts";
 import { formatShortlistLine } from "../supabase/functions/referral-agents/logic.ts";
@@ -40,12 +41,6 @@ assert.deepEqual(handoffCc(undefined, "isa@agentbly.com", "ada@exp.com"), ["Kevi
 assert.deepEqual(handoffCc("ops@agentbly.com, Deb@AgentBly.com", "ops@agentbly.com", "ada@exp.com"), ["ops@agentbly.com", "Deb@AgentBly.com"]);
 assert.deepEqual(handoffCc(undefined, "", "Kevin.Jones@AgentBly.com"), ["Deb@AgentBly.com"]);
 
-const mail = buildMailto({ to: "ada@exp.com", cc: ["Kevin.Jones@AgentBly.com"], subject: "Bly Team referral — Ada", body: "Line one\nLine two" });
-assert.ok(mail.startsWith("mailto:ada%40exp.com?"));
-assert.ok(mail.includes("cc=Kevin.Jones%40AgentBly.com"));
-assert.ok(mail.includes("subject=Bly%20Team%20referral%20%E2%80%94%20Ada"));
-assert.ok(!mail.includes("+"));
-
 assert.equal(handoffSubject({ client_name: "Ada", side: "buyer", location: "Austin, TX" }), "Bly Team referral — Ada · Buyer · Austin, TX");
 const body = handoffBody({ client_name: "Ada", client_email: "a@b.co", client_phone: "3465550100", side: "seller", location: "Austin", receiving_agent: "Grace Hopper", bly_agent: "Kevin Jones", recordUrl: referralRecordUrl("abc") });
 assert.ok(body.startsWith("Hi Grace,"));
@@ -55,6 +50,18 @@ assert.ok(body.includes("filled Universal eXp-to-eXp Agent Referral Form is atta
 assert.ok(body.includes("Deborah G. Bly"));
 assert.equal(body.includes("drive.google.com"), false);
 assert.equal(body.includes("mailto:"), false);
+assert.equal(handoffSubject({ client_name: "Ada", side: "buyer", location: "Austin, TX" }).includes("mailto:"), false);
+for (const rel of [
+  "src/referrals/logic.ts",
+  "src/referrals/Handoff.tsx",
+  "src/referrals/Referrals.tsx",
+  "src/referrals/outlook.ts",
+  "src/referrals/outlookDraft.ts",
+]) {
+  const text = readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
+  assert.equal(text.includes("buildMailto"), false, rel);
+  assert.equal(text.includes("mailto:"), false, rel);
+}
 assert.equal(referralNewUrl(), "https://kevinjones-lang.github.io/bly-team-metrics/#/referrals/new");
 
 assert.equal(validateDraft({ client_name: "", client_email: "a@b.co", client_phone: "3465550100", side: "" }), "Name is required.");

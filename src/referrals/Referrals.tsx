@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useAgent } from "../agent";
 import {
-  AGENT_SOURCES, SIDES, STATUSES, blankToNull, ensureShortlistLine, formatDay, formatWhen, handoffCc,
+  SIDES, STATUSES, blankToNull, ensureShortlistLine, formatDay, formatWhen, handoffCc,
   fubFields, humanError, isEmail, isSide, isStatus, isTouchDue, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
   type Side, type Status,
 } from "./logic.ts";
@@ -119,22 +119,6 @@ function mergePrefill(d: Draft, person: FubPrefill): Draft {
   };
 }
 
-function Sources() {
-  return (
-    <details className="rh-sources">
-      <summary>Where to find an out-of-area agent</summary>
-      <p className="caption">Paste is the fallback. One person per line: Name &lt;email&gt; — market.</p>
-      <ul>
-        {AGENT_SOURCES.map((s) => (
-          <li key={s.name}>
-            <b>{s.name}.</b> {s.detail}{s.href ? <> <a href={s.href} target="_blank" rel="noopener noreferrer">Open</a></> : null}
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
 function Field(props: { label: string; children: ReactNode; wide?: boolean }) {
   return <label className={"field" + (props.wide ? " wide" : "")}><span>{props.label}</span>{props.children}</label>;
 }
@@ -231,7 +215,7 @@ function NewReferral() {
   return (
     <form className="section" onSubmit={onSubmit}>
       <h2 className="serif">New referral</h2>
-      <p className="caption">Name, email, and phone are required. After you save, agent profiles near the location are the next step. The form handoff stays closed until one is selected.</p>
+      <p className="caption">Name, email, and phone are required. After you save, agent profiles near the location are the next step. The form handoff stays closed until a receiving agent email is on the record.</p>
       {err ? <p className="rh-error" role="alert">{err}</p> : null}
       <ClientFields draft={draft} set={set} />
       <FubLookup draft={draft} set={set} onFound={(person) => setDraft((d) => mergePrefill(d, person))} />
@@ -504,10 +488,12 @@ function Detail({ id }: { id: string }) {
             <Field label="Receiving agent phone"><input value={draft.receiving_agent_phone} onChange={(e) => set({ receiving_agent_phone: e.target.value })} /></Field>
             <Field label="Receiving brokerage"><input value={draft.receiving_brokerage} onChange={(e) => set({ receiving_brokerage: e.target.value })} placeholder={DEFAULT_RECEIVING_BROKERAGE} /></Field>
             <Field label="ISA email (Cc)"><input type="email" value={draft.isa_email} onChange={(e) => set({ isa_email: e.target.value })} placeholder="Optional" /></Field>
-            <Field label="Bly Team agent (Follow Up Boss owner)"><input value={draft.fub_owner} onChange={(e) => set({ fub_owner: e.target.value })} placeholder="Who owns this lead" /></Field>
+            <Field label="Bly Team agent (Follow Up Boss owner)"><input value={draft.fub_owner} onChange={(e) => set({ fub_owner: e.target.value })} placeholder="Required before the Outlook draft" /></Field>
           </div>
+          <p className="caption">Email only. Required before the Outlook draft, not before preview. Deborah G. Bly stays the originating agent on the PDF.</p>
           <details className="rh-sources">
             <summary>Paste a shortlist instead</summary>
+            <p className="caption">One person per line: Name &lt;email&gt; — market.</p>
             <div className="rh-fields">
               <Field label="Agent shortlist" wide>
                 <textarea value={draft.shortlist} onChange={(e) => set({ shortlist: e.target.value })} placeholder={"Ada Lovelace <ada@exp.com> — Austin\nGrace Hopper, grace@exp.com"} />
@@ -525,7 +511,6 @@ function Detail({ id }: { id: string }) {
                 </Field>
               ) : null}
             </div>
-            <Sources />
           </details>
           <p className="rh-cc">Cc: {cc.join(", ") || "—"}</p>
           <div className="rh-actions">
@@ -542,63 +527,65 @@ function Detail({ id }: { id: string }) {
           </div>
         </section>
       </div>
-      <Suspense fallback={<p className="caption">Loading the referral form…</p>}>
-      <Handoff
-        seed={{
-          clientName: draft.client_name,
-          clientEmail: draft.client_email,
-          clientPhone: draft.client_phone,
-          location: draft.location,
-          side: draft.side || null,
-          timeline: draft.timeline,
-          notes: draft.notes,
-          fubPersonId: draft.fub_person_id,
-          referralId: row.id,
-          receivingAgent: draft.receiving_agent,
-          receivingEmail: draft.receiving_agent_email,
-          receivingPhone: draft.receiving_agent_phone,
-          receivingBrokerage: draft.receiving_brokerage,
-          blyAgent: draft.fub_owner,
-        }}
-        cc={cc}
-        recordUrl={recordUrl}
-        location={draft.location}
-        timeline={draft.timeline}
-        notes={draft.notes}
-        busy={busy}
-        draftAt={row.outlook_draft_at}
-        draftLink={row.outlook_draft_web_link}
-        onPersist={async (form) => {
-          const side = sideForContract(form.contract);
-          const next = await updateReferral(id, toWrite({
-            ...draftRef.current,
-            client_name: form.clientName,
-            client_email: form.clientEmail,
-            client_phone: form.clientPhone,
-            side: side ?? "",
-            receiving_agent: form.receivingAgent,
-            receiving_agent_email: form.receivingEmail,
-            receiving_agent_phone: form.receivingPhone,
-            receiving_brokerage: form.receivingBrokerage,
-            fub_owner: form.blyAgent,
-          }, true));
-          statusRef.current = next.status;
-          const saved = draftFrom(next);
-          draftRef.current = saved;
-          setRow(next);
-          setDraft(saved);
-        }}
-        onDraftRecorded={async (webLink) => {
-          const next = await markOutlookDraft(id, webLink);
-          statusRef.current = next.status;
-          const saved = draftFrom(next);
-          draftRef.current = saved;
-          setRow(next);
-          setDraft(saved);
-          setEvents(await listEvents(id));
-        }}
-      />
-      </Suspense>
+      {isEmail(draft.receiving_agent_email) ? (
+        <Suspense fallback={<p className="caption">Loading the referral form…</p>}>
+        <Handoff
+          seed={{
+            clientName: draft.client_name,
+            clientEmail: draft.client_email,
+            clientPhone: draft.client_phone,
+            location: draft.location,
+            side: draft.side || null,
+            timeline: draft.timeline,
+            notes: draft.notes,
+            fubPersonId: draft.fub_person_id,
+            referralId: row.id,
+            receivingAgent: draft.receiving_agent,
+            receivingEmail: draft.receiving_agent_email,
+            receivingPhone: draft.receiving_agent_phone,
+            receivingBrokerage: draft.receiving_brokerage,
+            blyAgent: draft.fub_owner,
+          }}
+          cc={cc}
+          recordUrl={recordUrl}
+          location={draft.location}
+          timeline={draft.timeline}
+          notes={draft.notes}
+          busy={busy}
+          draftAt={row.outlook_draft_at}
+          draftLink={row.outlook_draft_web_link}
+          onPersist={async (form) => {
+            const side = sideForContract(form.contract);
+            const next = await updateReferral(id, toWrite({
+              ...draftRef.current,
+              client_name: form.clientName,
+              client_email: form.clientEmail,
+              client_phone: form.clientPhone,
+              side: side ?? "",
+              receiving_agent: form.receivingAgent,
+              receiving_agent_email: form.receivingEmail,
+              receiving_agent_phone: form.receivingPhone,
+              receiving_brokerage: form.receivingBrokerage,
+              fub_owner: form.blyAgent,
+            }, true));
+            statusRef.current = next.status;
+            const saved = draftFrom(next);
+            draftRef.current = saved;
+            setRow(next);
+            setDraft(saved);
+          }}
+          onDraftRecorded={async (webLink) => {
+            const next = await markOutlookDraft(id, webLink);
+            statusRef.current = next.status;
+            const saved = draftFrom(next);
+            draftRef.current = saved;
+            setRow(next);
+            setDraft(saved);
+            setEvents(await listEvents(id));
+          }}
+        />
+        </Suspense>
+      ) : null}
       <section className="section">
         <h2 className="serif">Activity</h2>
         {events.length === 0 ? <p className="caption">No activity yet.</p> : (
@@ -625,7 +612,6 @@ export default function Referrals() {
           <h1 className="page-title serif">Referral Hub</h1>
           <p className="summary">Out-of-area referrals for The Bly Team. Create a record, pick an agent from the profiles near the location, then hand it off as an Outlook draft with the filled referral form attached.</p>
         </div>
-        <a className="primary" href={href("#/referrals/new")}>New referral</a>
       </div>
       <nav className="rh-tabs" aria-label="Referral Hub">
         <a href={href("#/referrals/board")} className={onBoard ? "on" : ""} aria-current={onBoard ? "page" : undefined}>Board</a>

@@ -99,9 +99,8 @@ export default function Handoff(props: {
   }, [props.seed.receivingEmail, syncedEmail]);
 
   useEffect(() => {
-    const owner = props.seed.blyAgent?.trim() ?? "";
-    if (!owner) return;
-    setFormState((current) => current.blyAgent.trim() ? current : { ...current, blyAgent: owner });
+    const owner = props.seed.blyAgent ?? "";
+    setFormState((current) => current.blyAgent === owner ? current : { ...current, blyAgent: owner });
   }, [props.seed.blyAgent]);
 
   useEffect(() => () => {
@@ -135,13 +134,19 @@ export default function Handoff(props: {
     setNote("Reloaded from the referral.");
   };
 
+  const withOwner = (current: ReferralForm): ReferralForm => ({
+    ...current,
+    blyAgent: seedRef.current.blyAgent ?? "",
+  });
+
   const preview = async () => {
-    const problem = validateHandoff(form, "preview");
+    const current = withOwner(form);
+    const problem = validateHandoff(current, "preview");
     if (problem) { setErr(problem); return; }
     setWorking(true); setErr(""); setNote("");
     try {
       const template = await loadReferralTemplate();
-      const bytes = (await fillReferralPdf(template, form)).slice();
+      const bytes = (await fillReferralPdf(template, current)).slice();
       const url = URL.createObjectURL(pdfBlob(bytes));
       setPreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -171,13 +176,14 @@ export default function Handoff(props: {
 
   const create = async () => {
     if (!pdf) { setErr("Preview the filled PDF before creating the draft."); return; }
-    const problem = validateHandoff(form, "draft");
+    const current = withOwner(form);
+    const problem = validateHandoff(current, "draft");
     if (problem) { setErr(problem); return; }
     setWorking(true); setErr(""); setNote("");
     try {
-      await props.onPersist(form);
+      await props.onPersist(current);
       const input = handoffPayload({
-        form,
+        form: current,
         pdf,
         cc: props.cc,
         recordUrl: props.recordUrl,
@@ -219,7 +225,7 @@ export default function Handoff(props: {
   return (
     <section className="section">
       <h2 className="serif">Referral form</h2>
-      <p className="caption">Edit the Universal eXp-to-eXp form, preview the filled PDF, then create an Outlook draft with that PDF attached. Deborah G. Bly stays the originating agent. The Bly Team agent who owns the Follow Up Boss lead is named in the email only.</p>
+      <p className="caption">Edit the Universal eXp-to-eXp form, preview the filled PDF, then create an Outlook draft with that PDF attached. Deborah G. Bly stays the originating agent. The Bly Team agent who owns the Follow Up Boss lead is named in the email only. Enter that name once, on the receiving agent panel. Preview works before it is filled. The Outlook draft still needs it.</p>
       <p className="rh-steps" aria-label="Handoff steps">
         <span className={step === "edit" ? "on" : ""}>1. Edit</span>
         <span className={step === "preview" ? "on" : ""}>2. Preview</span>
@@ -264,10 +270,9 @@ export default function Handoff(props: {
               ? <Field label="Percent"><input inputMode="decimal" value={form.feePercent} onChange={(e) => edit({ feePercent: e.target.value })} /></Field>
               : <Field label="Flat amount"><input value={form.feeFlat} onChange={(e) => edit({ feeFlat: e.target.value })} /></Field>}
             <Field label="Governing law"><input value={form.governingLaw} onChange={(e) => edit({ governingLaw: e.target.value })} /></Field>
-            <Field label="Bly Team agent (Follow Up Boss owner)" wide><input value={form.blyAgent} onChange={(e) => edit({ blyAgent: e.target.value })} placeholder="Who owns this lead for follow-up" /></Field>
             <Field label="Additional terms" wide><textarea value={form.additionalTerms} onChange={(e) => edit({ additionalTerms: e.target.value })} /></Field>
           </div>
-          <p className="caption">Signature lines stay blank. {contractCaption(form.contract)} The fee defaults to 25% of gross commission. Preview works before the Follow Up Boss owner is filled. The Outlook draft still needs that name.</p>
+          <p className="caption">Signature lines stay blank. {contractCaption(form.contract)} The fee defaults to 25% of gross commission.</p>
           <div className="rh-actions">
             <button type="button" className="primary" disabled={locked || !isEmail(form.receivingEmail)} onClick={() => { void preview(); }}>{working ? "Preparing…" : "Preview filled PDF"}</button>
             <button type="button" className="ghost dark" disabled={locked} onClick={reload}>Reload from referral</button>
@@ -278,10 +283,7 @@ export default function Handoff(props: {
         <div className="stack">
           <p className="caption">These are the pages that will be attached. Check Deborah G. Bly as originating agent, the 25% fee unless you changed it, and the client and receiving agent.</p>
           {pdf ? <PdfPreview data={pdf} fallbackUrl={previewUrl} /> : null}
-          <Field label="Bly Team agent (Follow Up Boss owner)" wide>
-            <input value={form.blyAgent} onChange={(e) => edit({ blyAgent: e.target.value })} placeholder="Required before the Outlook draft" />
-          </Field>
-          {!form.blyAgent.trim() ? <p className="caption">Name the Bly Team agent who owns this lead before creating the draft. That name is for the email only. It is not the originating agent on the PDF.</p> : null}
+          {!(props.seed.blyAgent ?? "").trim() ? <p className="caption">Name the Bly Team agent on the receiving agent panel before creating the draft. That name is for the email only. It is not the originating agent on the PDF.</p> : null}
           <p className="rh-cc">To: {form.receivingEmail || "—"} · Cc: {props.cc.join(", ") || "—"}</p>
           {microsoftConfigured()
             ? <p className="caption">{account ? `Microsoft connected as ${account}.` : "Connect Microsoft once. The draft is created in that account’s Outlook Drafts."}</p>

@@ -125,7 +125,7 @@ export default function AgentOptions(props: {
       {result?.tier === "ffm" ? (
         <details className="rh-sources">
           <summary>Broader eXp sources</summary>
-          <p className="caption">Use these when none of the Fast Forward cards is the right agent, then paste that person in the handoff panel.</p>
+          <p className="caption">Use these when none of the Fast Forward cards is the right agent, then paste that person in the receiving agent panel.</p>
           <LinkList links={links} />
         </details>
       ) : null}
