@@ -5,6 +5,7 @@ import {
   parseFfmKml, parseMoney, parseUnits, rankAgents, sourceLinks,
   type FfmAgent,
 } from "../supabase/functions/referral-agents/logic.ts";
+import { choosePlace, firstGeocodeHit } from "../supabase/functions/referral-agents/geocode.ts";
 
 const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document><Folder>
@@ -120,6 +121,15 @@ assert.ok(carlsbadLookup.agents.every((a) => a.place !== "Houston, TX"));
 assert.match(carlsbadLookup.agents[0].directoryUrl, /name=/);
 assert.equal(carlsbadLookup.agents[0].source, "ffm");
 
+const dallas = { lat: 32.78306, lng: -96.80667, label: "Dallas, Texas" };
+const dallasLookup = buildLookup({ query: "Dallas, TX", origin: dallas, agents: cache.agents, live: false, asOf: "cache" });
+assert.equal(dallasLookup.tier, "ffm_nearest");
+assert.equal(dallasLookup.agents.length, FALLBACK_LIMIT);
+assert.ok(dallasLookup.agents.every((a) => a.distanceMiles > FFM_RADIUS_MILES && a.distanceLabel.endsWith(" mi")));
+assert.ok(dallasLookup.agents.some((a) => /Fort Worth/i.test(a.place)));
+assert.ok(dallasLookup.agents.some((a) => /McKinney/i.test(a.place)));
+assert.ok(dallasLookup.agents.some((a) => /Burleson/i.test(a.place)));
+
 const boulder = { lat: 40.0149856, lng: -105.270545, label: "Boulder, CO" };
 const boulderLookup = buildLookup({ query: "Boulder, CO", origin: boulder, agents: cache.agents, live: false, asOf: "cache" });
 assert.equal(boulderLookup.tier, "ffm_nearest");
@@ -134,6 +144,23 @@ assert.equal(aroundSelf.tier, "ffm");
 assert.equal(aroundSelf.agents[0].email, self.email);
 assert.ok(aroundSelf.agents[0].distanceMiles < 1);
 
+const picked = choosePlace("Dallas, TX", [
+  { lat: 44.92, lng: -123.32, label: "Dallas, Oregon", country: "US", admin1: "Oregon", population: 17000, kind: "PPLA2" },
+  { lat: 32.78306, lng: -96.80667, label: "Dallas, Texas", country: "US", admin1: "Texas", population: 1300000, kind: "PPLA2" },
+  { lat: 50.23, lng: 12.87, label: "Karlovy Vary", country: "CZ", admin1: "Carlsbad", population: 50000, kind: "PPLA" },
+]);
+assert.equal(picked?.label, "Dallas, Texas");
+const fellThrough = await firstGeocodeHit([
+  async () => { throw new Error("nominatim blocked"); },
+  async () => null,
+  async () => ({ lat: 32.78, lng: -96.8, label: "Dallas, Texas" }),
+]);
+assert.equal(fellThrough?.label, "Dallas, Texas");
+const unplacedNote = buildLookup({ query: "Dallas, TX", origin: null, agents: cache.agents, live: false, asOf: "t" });
+assert.equal(unplacedNote.agents.length, 0);
+assert.match(unplacedNote.note, /Could not place "Dallas, TX"/);
+
 console.log("referral agents ok");
 console.log("Carlsbad, CA:", carlsbadLookup.agents.map((a) => `${a.distanceLabel} ${a.name} (${a.place})`).join("; "));
 console.log("Boulder, CO fallback:", boulderLookup.agents.map((a) => `${a.distanceLabel} ${a.name} (${a.place})`).join("; "));
+console.log("Dallas, TX nearest:", dallasLookup.agents.map((a) => `${a.distanceLabel} ${a.name} (${a.place})`).join("; "));

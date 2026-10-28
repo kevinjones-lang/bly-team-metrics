@@ -85,7 +85,13 @@ export default function AgentOptions(props: {
     <div className="stack">
       {loading ? <div className="center"><div className="spinner" /><p className="caption">Finding agents near {location}…</p></div> : null}
       {err ? <p className="rh-error" role="alert">{err}</p> : null}
-      {result ? <p className="caption">{result.note}{result.place ? ` Placed at ${result.place}.` : ""}</p> : null}
+      {result && result.agents.length === 0 ? (
+        <div className={result.tier === "unplaced" ? "rh-error" : "rh-note"} role="status">
+          <p><b>No agent cards for {location}.</b></p>
+          <p>{result.note}</p>
+        </div>
+      ) : null}
+      {result && result.agents.length > 0 ? <p className="caption">{result.note}{result.place ? ` Placed at ${result.place}.` : ""}</p> : null}
       {result && result.agents.length > 0 ? (
         <div className="rh-options" role="list">
           {result.agents.map((agent) => {

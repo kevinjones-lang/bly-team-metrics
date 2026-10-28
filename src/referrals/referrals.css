@@ -25,6 +25,8 @@
 .referrals .field textarea { min-height: 96px; resize: vertical; }
 .rh-error { background: var(--paper); border-left: 3px solid #A3272B; padding: 10px 12px; color: #3a1a1b; }
 .rh-note { background: var(--ivory); border-left: 3px solid var(--gold); padding: 10px 12px; }
+.rh-error p, .rh-note p { margin: 0; }
+.rh-error p + p, .rh-note p + p { margin-top: 6px; }
 .rh-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .rh-status button { min-height: 44px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 6px 10px; }
 .rh-status button.on { background: var(--charcoal); color: var(--paper); border-color: var(--charcoal); }
