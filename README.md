@@ -21,7 +21,7 @@ Out-of-area referral workspace for staff, inside this site (Slack sign-in, same 
 | `#/hub` | Ops hub. Referral Hub is a tile next to the other applets. |
 | `#/referrals` and `#/referrals/board` | Admin board. Statuses: `new` → `shortlist` → `awaiting_pick` → `sent` → `connected` → `monthly_check` → `closed`, plus `nurture`. |
 | `#/referrals/new` | New referral. Optional `?fub=` person id or Follow Up Boss URL prefills when the Edge Function is configured. |
-| `#/referrals/<id>` | Detail, shortlist, and email handoff. |
+| `#/referrals/<id>` | Detail, agent option cards, and email handoff. |
 
 **Follow Up Boss custom field `Bly Team Referral Hub`.** Paste the record’s GitHub Pages link:
 
@@ -39,4 +39,32 @@ Cadence is stored on the row: the first handoff schedules the next touch 14 days
 
 **Follow Up Boss lookup.** Optional prefill. Deploy `supabase/functions/referral-fub` and set the Supabase Edge Function secret `FUB_API_KEY` (Follow Up Boss API key). Do not put that key in Vite, `VITE_*`, or this repo. Without the secret the form still saves; lookup returns a clear message. Magic-link or Google sign-in can wait; Slack staff access is the v1 gate.
 
-**Agent shortlist.** Paste or pick for now (one person per line: `Name <email> — market`). The detail page lists where to look them up: the FFM / Fast Forward Movement #teamgogo map, eXp Agent Search in the Agent Portal, the public [eXp Agent Directory](https://www.exprealty.com/agents-search), and eXp Workplace / Agent-to-Agent. Those sources are not called by the app in v1.
+**Agent options.** On a referral that has a location, the detail page asks the `referral-agents` Edge Function for Fast Forward Movement agents near that place. The function reads a cached copy of the public FFM Google My Map (`mid=1JtTrRiy5GKmzXhCLsLwTaFG4GfR2W51c`, file `supabase/functions/referral-agents/ffm-agents.json`). Pins in the KML are used when the map has them; otherwise the agent’s primary ZIP is a GeoNames centroid ([geonames.org](https://www.geonames.org/), CC-BY 4.0). The referral location is geocoded with Nominatim or, for a ZIP, Zippopotam. No API key.
+
+- Within 20 miles: up to 3 cards, closest first. Selecting one saves the receiving agent and moves `new` / `shortlist` to `awaiting_pick`.
+- None within 20 miles: up to 5 nearest FFM cards, plus links to the [eXp Agent Directory](https://www.exprealty.com/agents-search), the [eXp Hub US Referral Network](https://hub.exprealty.com/connect/group/us-corp-exp-referral-network), and the [Global Referral Platform](https://agents.exprealty.com/). The public directory blocks automated search (reCAPTCHA), so those sources stay links. Paste is still there for an agent you find that way.
+- “Open mail app” stays disabled until a card is selected or a receiving-agent email is entered. Cc is still the ISA plus Kevin and Deb.
+
+Deploy with the other referral function. No new secret:
+
+```bash
+supabase functions deploy referral-agents
+```
+
+Refresh the cache after the FFM map changes, then redeploy:
+
+```bash
+node --experimental-strip-types scripts/build-ffm-agents.ts
+supabase functions deploy referral-agents
+```
+
+The function also re-reads the public KML in the background when an isolate is warm. The committed file is what a cold request uses.
+
+**How to test (not Houston).** Sign in as staff, create a referral with location `Carlsbad, CA`, and open it. Expect up to three Fast Forward cards with a distance, market, trailing-12 volume when the map has it, and an eXp directory link. Select one: the receiving agent and email fill in, the status becomes Awaiting pick, and Open mail app becomes the primary button with that agent on To. A second referral with location `Boulder, CO` has no Fast Forward agent inside 20 miles, so the page shows the five nearest and the directory links. The universal eXp-to-eXp form link and the Follow Up Boss lookup are unchanged.
+
+Checks:
+
+```bash
+node --experimental-strip-types scripts/check-referral-logic.ts
+node --experimental-strip-types scripts/check-referral-agents.ts
+```

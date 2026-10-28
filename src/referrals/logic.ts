@@ -1,5 +1,6 @@
 // Pure referral rules: URLs, mailto handoff, shortlist parsing, FUB id parsing.
 // Status cadence (14 days, then 30) and the six-month nurture move are enforced in Postgres.
+import { EXP_DIRECTORY_URL, EXP_GLOBAL_REFERRAL_URL, EXP_HUB_REFERRAL_URL, FFM_MAP_ID } from "../../supabase/functions/referral-agents/logic.ts";
 
 export const STATUSES = ["new", "shortlist", "awaiting_pick", "sent", "connected", "monthly_check", "closed", "nurture"] as const;
 export type Status = (typeof STATUSES)[number];
@@ -13,10 +14,11 @@ export const REFERRAL_SITE = "https://kevinjones-lang.github.io/bly-team-metrics
 export const DEFAULT_HANDOFF_CC = ["Kevin.Jones@AgentBly.com", "Deb@AgentBly.com"] as const;
 
 export const AGENT_SOURCES: { name: string; detail: string; href?: string }[] = [
-  { name: "FFM map", detail: "Fast Forward Movement’s #teamgogo Map. Search the client’s market and paste the agent’s name and email into the shortlist." },
+  { name: "FFM map", detail: "Fast Forward Movement agents within 20 miles are the cards on the referral. This opens the same public map.", href: `https://www.google.com/maps/d/viewer?mid=${FFM_MAP_ID}` },
+  { name: "eXp Agent Directory", detail: "Public directory of eXp Realty agents in the US and Canada. Search here when no Fast Forward agent is close enough. The directory blocks automated lookups, so this stays a link.", href: EXP_DIRECTORY_URL },
+  { name: "eXp Hub — US Referral Network", detail: "Workplace group for the US referral network. Sign in, then paste the agent you choose.", href: EXP_HUB_REFERRAL_URL },
+  { name: "Global Referral Platform", detail: "eXp agent directory and referral platform. Sign in required.", href: EXP_GLOBAL_REFERRAL_URL },
   { name: "eXp Agent Search", detail: "eXp Agent Portal (sign in with Okta) → Agent Search. Filter by miles, license state, Mentor, and ICON." },
-  { name: "eXp Agent Directory", detail: "Public directory of eXp Realty agents in the US and Canada.", href: "https://www.exprealty.com/agents-search" },
-  { name: "eXp Workplace and Agent-to-Agent", detail: "Workplace groups for internal referrals, and the Agent-to-Agent tool when you already know who should receive the client.", href: "https://searchhelp.exprealty.com/hc/en-us/articles/18138354496525-Where-do-I-find-eXp-agents-to-refer-to" },
 ];
 
 export type ShortlistEntry = { name: string; email: string; raw: string };
@@ -124,6 +126,56 @@ export function parseFubPersonId(input: string): string | null {
 }
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+/** Showing agent cards moves a new referral onto the shortlist. Later statuses stay put. */
+export function statusAfterOptions(status: Status): Status | null {
+  switch (status) {
+    case "new":
+      return "shortlist";
+    case "shortlist":
+    case "awaiting_pick":
+    case "sent":
+    case "connected":
+    case "monthly_check":
+    case "closed":
+    case "nurture":
+      return null;
+    default: {
+      const _n: never = status;
+      return _n;
+    }
+  }
+}
+
+/** Picking a card (or a pasted line) moves the shortlist to awaiting pick. Mail is the next step, not a status. */
+export function statusAfterPick(status: Status): Status | null {
+  switch (status) {
+    case "new":
+    case "shortlist":
+      return "awaiting_pick";
+    case "awaiting_pick":
+    case "sent":
+    case "connected":
+    case "monthly_check":
+    case "closed":
+    case "nurture":
+      return null;
+    default: {
+      const _n: never = status;
+      return _n;
+    }
+  }
+}
+
+/** Keep a chosen agent on the pasted shortlist without duplicating their email. */
+export function ensureShortlistLine(text: string, line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed) return text;
+  const email = parseShortlist(trimmed)[0]?.email.toLowerCase() ?? "";
+  if (email && parseShortlist(text).some((entry) => entry.email.toLowerCase() === email)) return text;
+  const base = text.trim();
+  return base ? `${base}\n${trimmed}` : trimmed;
+}
 
 /** One agent per line. "Name <email>", "Name, email", "Name | email | market", or a bare email. */
 export function parseShortlist(text: string): ShortlistEntry[] {

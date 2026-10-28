@@ -1,11 +1,13 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useAgent } from "../agent";
 import {
-  AGENT_SOURCES, EXP_FORM_URL, SIDES, STATUSES, blankToNull, buildMailto, formatDay, formatWhen, handoffBody, handoffCc, handoffSubject,
-  fubFields, humanError, isEmail, isSide, isStatus, isTouchDue, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusLabel, validateDraft,
+  AGENT_SOURCES, EXP_FORM_URL, SIDES, STATUSES, blankToNull, buildMailto, ensureShortlistLine, formatDay, formatWhen, handoffBody, handoffCc, handoffSubject,
+  fubFields, humanError, isEmail, isSide, isStatus, isTouchDue, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
   type Side, type Status,
 } from "./logic";
-import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markSent, updateReferral, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
+import { formatShortlistLine } from "../../supabase/functions/referral-agents/logic.ts";
+import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markSent, updateReferral, type AgentLookup, type AgentOption, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
+import AgentOptions from "./AgentOptions";
 import "./referrals.css";
 
 const CC_ENV = import.meta.env.VITE_REFERRAL_CC as string | undefined;
@@ -107,7 +109,7 @@ function Sources() {
   return (
     <details className="rh-sources">
       <summary>Where to find an out-of-area agent</summary>
-      <p className="caption">The shortlist is a paste for now. Look the agent up, then add one person per line: Name &lt;email&gt; — market.</p>
+      <p className="caption">Paste is the fallback. One person per line: Name &lt;email&gt; — market.</p>
       <ul>
         {AGENT_SOURCES.map((s) => (
           <li key={s.name}>
@@ -215,7 +217,7 @@ function NewReferral() {
   return (
     <form className="section" onSubmit={onSubmit}>
       <h2 className="serif">New referral</h2>
-      <p className="caption">Name, email, and phone are required. The Follow Up Boss custom field for this record is created when you save.</p>
+      <p className="caption">Name, email, and phone are required. After you save, agent profiles near the location are the next step. The mail handoff stays closed until one is selected.</p>
       {err ? <p className="rh-error" role="alert">{err}</p> : null}
       <ClientFields draft={draft} set={set} />
       <FubLookup draft={draft} set={set} onFound={(person) => setDraft((d) => mergePrefill(d, person))} />
@@ -299,6 +301,10 @@ function Detail({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [missing, setMissing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const chain = useRef(Promise.resolve());
+  const statusRef = useRef<Status>("new");
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   useEffect(() => {
     let cancel = false;
@@ -308,6 +314,7 @@ function Detail({ id }: { id: string }) {
         if (cancel) return;
         if (!found) { setMissing(true); return; }
         setRow(found);
+        statusRef.current = found.status;
         setDraft(draftFrom(found));
         setEvents(hist);
       } catch (e) {
@@ -319,6 +326,54 @@ function Detail({ id }: { id: string }) {
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
+  const enqueue = (task: () => Promise<void>) => {
+    const run = chain.current.then(task, task);
+    chain.current = run.then(() => undefined, () => undefined);
+    return run;
+  };
+
+  const onListed = (result: AgentLookup) => enqueue(async () => {
+    if (result.tier === "unplaced" || result.agents.length === 0) return;
+    const next = statusAfterOptions(statusRef.current);
+    if (!next) return;
+    const updated = await updateReferral(id, { status: next });
+    statusRef.current = updated.status;
+    setRow(updated);
+    setEvents(await listEvents(id));
+  });
+
+  const choose = (agent: { name: string; email: string; place?: string; distanceLabel?: string; level?: string }) => enqueue(async () => {
+    const email = isEmail(agent.email) ? agent.email.trim() : "";
+    const line = formatShortlistLine({ name: agent.name, email, place: agent.place, distanceLabel: agent.distanceLabel, level: agent.level });
+    const shortlist = ensureShortlistLine(draftRef.current.shortlist, line);
+    draftRef.current = { ...draftRef.current, receiving_agent: agent.name, receiving_agent_email: email, shortlist };
+    setDraft(draftRef.current);
+    const status = statusAfterPick(statusRef.current);
+    setBusy(true); setErr(""); setNote("");
+    try {
+      const patch: Partial<ReferralWrite> & { status?: Status } = {
+        receiving_agent: blankToNull(agent.name),
+        receiving_agent_email: email ? email : null,
+        shortlist: shortlist.trim() ? shortlist.trim() : null,
+      };
+      if (status) patch.status = status;
+      const next = await updateReferral(id, patch);
+      statusRef.current = next.status;
+      const saved = draftFrom(next);
+      draftRef.current = saved;
+      setRow(next);
+      setDraft(saved);
+      setEvents(await listEvents(id));
+      setNote(email
+        ? `${agent.name} is the receiving agent. Open the mail app when you are ready to send.`
+        : `${agent.name} is selected. Add an email before opening the mail app.`);
+    } catch (e) {
+      setErr(humanError(e));
+    } finally {
+      setBusy(false);
+    }
+  });
+
   const save = async () => {
     const problem = validateDraft(draft);
     if (problem) { setErr(problem); return; }
@@ -327,6 +382,7 @@ function Detail({ id }: { id: string }) {
     setBusy(true); setErr(""); setNote("");
     try {
       const next = await updateReferral(id, toWrite({ ...draft, ...fubFields(draft.fub_url || draft.fub_person_id) }, true));
+      statusRef.current = next.status;
       setRow(next);
       setDraft(draftFrom(next));
       setEvents(await listEvents(id));
@@ -342,6 +398,7 @@ function Detail({ id }: { id: string }) {
     setBusy(true); setErr(""); setNote("");
     try {
       const next = await updateReferral(id, { status });
+      statusRef.current = next.status;
       setRow(next);
       setEvents(await listEvents(id));
       setNote(`Status is ${statusLabel(next.status)}. Next touch ${formatDay(next.next_touch_on)} (${next.cadence}).`);
@@ -357,6 +414,7 @@ function Detail({ id }: { id: string }) {
     setBusy(true); setErr(""); setNote("");
     try {
       const next = await markSent({ id, agent: draft.receiving_agent.trim(), email: draft.receiving_agent_email.trim(), isa: draft.isa_email.trim(), shortlist: draft.shortlist });
+      statusRef.current = next.status;
       setRow(next);
       setDraft(draftFrom(next));
       setEvents(await listEvents(id));
@@ -405,6 +463,19 @@ function Detail({ id }: { id: string }) {
           ))}
         </div>
       </section>
+      <section className="section">
+        <h2 className="serif">Agent options</h2>
+        <p className="caption">The agent or ISA picks the receiving agent. Kevin and Deb stay on Cc unless they are the one who has to choose.</p>
+        {draft.location.trim() !== (row.location ?? "").trim() ? <p className="caption">Save the client to rank agents for the edited location.</p> : null}
+        <AgentOptions
+          location={row.location ?? ""}
+          selectedEmail={draft.receiving_agent_email}
+          selectedName={draft.receiving_agent}
+          busy={busy}
+          onPick={(agent: AgentOption) => { void choose(agent); }}
+          onListed={onListed}
+        />
+      </section>
       <div className="rh-split">
         <section className="section">
           <h2 className="serif">Client</h2>
@@ -414,35 +485,40 @@ function Detail({ id }: { id: string }) {
         </section>
         <section className="section">
           <h2 className="serif">Email handoff</h2>
-          <p className="caption">Opens the mail app with the receiving agent on To and the ISA, Kevin, and Deb on Cc. Then confirm with “I sent it” so the counters and the next touch move.</p>
+          <p className="caption">Open mail app stays quiet until a card is selected or you enter the receiving agent here. To is that agent. Cc is the ISA, Kevin, and Deb. Then confirm with “I sent it”.</p>
           <div className="rh-fields">
-            <Field label="Agent shortlist" wide>
-              <textarea value={draft.shortlist} onChange={(e) => set({ shortlist: e.target.value })} placeholder={"Ada Lovelace <ada@exp.com> — Austin\nGrace Hopper, grace@exp.com"} />
-            </Field>
-            {entries.length ? (
-              <Field label="Pick from shortlist">
-                <select value="" onChange={(e) => {
-                  const entry = entries[Number(e.target.value)];
-                  if (!entry) return;
-                  set({ receiving_agent: entry.name, receiving_agent_email: entry.email || draft.receiving_agent_email });
-                }}>
-                  <option value="">Select an agent</option>
-                  {entries.map((entry, i) => <option key={i} value={i}>{entry.name}{entry.email ? ` · ${entry.email}` : ""}</option>)}
-                </select>
-              </Field>
-            ) : null}
             <Field label="Receiving agent"><input value={draft.receiving_agent} onChange={(e) => set({ receiving_agent: e.target.value })} /></Field>
             <Field label="Receiving agent email"><input type="email" value={draft.receiving_agent_email} onChange={(e) => set({ receiving_agent_email: e.target.value })} /></Field>
             <Field label="ISA email (Cc)"><input type="email" value={draft.isa_email} onChange={(e) => set({ isa_email: e.target.value })} placeholder="Optional" /></Field>
           </div>
-          <Sources />
+          <details className="rh-sources">
+            <summary>Paste a shortlist instead</summary>
+            <div className="rh-fields">
+              <Field label="Agent shortlist" wide>
+                <textarea value={draft.shortlist} onChange={(e) => set({ shortlist: e.target.value })} placeholder={"Ada Lovelace <ada@exp.com> — Austin\nGrace Hopper, grace@exp.com"} />
+              </Field>
+              {entries.length ? (
+                <Field label="Use a pasted line">
+                  <select value="" onChange={(e) => {
+                    const entry = entries[Number(e.target.value)];
+                    if (!entry) return;
+                    void choose({ name: entry.name, email: entry.email });
+                  }}>
+                    <option value="">Select an agent</option>
+                    {entries.map((entry, i) => <option key={i} value={i}>{entry.name}{entry.email ? ` · ${entry.email}` : ""}</option>)}
+                  </select>
+                </Field>
+              ) : null}
+            </div>
+            <Sources />
+          </details>
           <p className="rh-cc">Cc: {cc.join(", ") || "—"}</p>
           <div className="rh-actions">
-            {mailto ? <a className="primary" href={mailto}>Open mail app</a> : <button type="button" className="primary" disabled>Open mail app</button>}
+            {mailto ? <a className="primary" href={mailto}>Open mail app</a> : <button type="button" className="ghost dark" disabled>Open mail app</button>}
             <a className="ghost dark" href={EXP_FORM_URL} target="_blank" rel="noopener noreferrer">Universal eXp-to-eXp form</a>
             <button type="button" className="ghost dark" disabled={busy || !mailto} onClick={sent}>I sent it</button>
           </div>
-          {!mailto ? <p className="caption">Add the receiving agent’s email to open the handoff.</p> : null}
+          {!mailto ? <p className="caption">Pick an agent card, or enter a receiving agent email, before opening the mail app.</p> : null}
           <h3 className="serif">Follow Up Boss field</h3>
           <p className="caption">Paste this into the custom field <b>Bly Team Referral Hub</b>. New referrals start at <a href={referralNewUrl()}>{referralNewUrl()}</a>.</p>
           <div className="rh-linkrow">
@@ -477,7 +553,7 @@ export default function Referrals() {
       <div className="rh-top">
         <div>
           <h1 className="page-title serif">Referral Hub</h1>
-          <p className="summary">Out-of-area referrals for The Bly Team. Create a record, shortlist an agent, and hand it off by email.</p>
+          <p className="summary">Out-of-area referrals for The Bly Team. Create a record, pick an agent from the profiles near the location, then hand it off by email.</p>
         </div>
         <a className="primary" href={href("#/referrals/new")}>New referral</a>
       </div>
@@ -485,7 +561,7 @@ export default function Referrals() {
         <a href={href("#/referrals/board")} className={onBoard ? "on" : ""} aria-current={onBoard ? "page" : undefined}>Board</a>
         <a href={href("#/referrals/new")} className={head === "new" ? "on" : ""} aria-current={head === "new" ? "page" : undefined}>New referral</a>
       </nav>
-      {head === "new" ? <NewReferral /> : detailId ? <Detail id={detailId} /> : head === "board" ? <Board /> : (
+      {head === "new" ? <NewReferral /> : detailId ? <Detail key={detailId} id={detailId} /> : head === "board" ? <Board /> : (
         <p className="rh-error">That referral link is not recognized. <a href={href("#/referrals/board")}>Back to the board</a>.</p>
       )}
     </div>
