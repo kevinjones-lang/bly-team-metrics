@@ -38,3 +38,12 @@
 .rh-events li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--soft); font-size: 14px; }
 .rh-events time { color: var(--muted); white-space: nowrap; }
 .rh-cc { font-size: 13px; color: #3a3a3a; margin: 0; }
+.rh-options { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.rh-option { display: flex; flex-direction: column; gap: 6px; background: var(--ivory); border: 1px solid var(--soft); padding: 12px 14px; min-width: 0; }
+.rh-option.selected { border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); background: var(--paper); }
+.rh-option .rh-name { font-family: var(--serif); font-size: 20px; line-height: 1.25; margin: 0; color: var(--charcoal); }
+.rh-option .rh-metrics { font-size: 13px; margin: 0; color: #3a3a3a; }
+.rh-option .rh-metrics span, .rh-option .rh-meta { overflow-wrap: anywhere; }
+.rh-links, .rh-fallback-links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.rh-option .rh-actions { margin-top: auto; padding-top: 4px; }
+.rh-option .rh-actions button { min-height: 44px; }

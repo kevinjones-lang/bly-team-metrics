@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import {
-  STATUSES, buildMailto, fubFields, handoffBody, handoffCc, handoffSubject, isTouchDue, parseFubPersonId, parseShortlist,
-  referralNewUrl, referralRecordUrl, statusLabel, validateDraft,
+  STATUSES, buildMailto, ensureShortlistLine, fubFields, handoffBody, handoffCc, handoffSubject, isTouchDue, parseFubPersonId, parseShortlist,
+  referralNewUrl, referralRecordUrl, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
 } from "../src/referrals/logic.ts";
+import { formatShortlistLine } from "../supabase/functions/referral-agents/logic.ts";
 
 const id = "12345";
 assert.equal(parseFubPersonId(id), id);
@@ -21,6 +22,19 @@ assert.equal(list[1].name, "Grace Hopper");
 assert.equal(list[1].email, "grace@exp.com");
 assert.equal(list[2].name, "only@exp.com");
 assert.equal(list[2].email, "only@exp.com");
+
+const picked = formatShortlistLine({ name: "Ada Lovelace", email: "ada@exp.com", place: "Carlsbad, CA", distanceLabel: "6.7 mi", level: "Generals" });
+const again = parseShortlist(picked);
+assert.equal(again[0].name, "Ada Lovelace");
+assert.equal(again[0].email, "ada@exp.com");
+assert.equal(ensureShortlistLine("Grace Hopper <grace@exp.com>", picked).split("\n").length, 2);
+assert.equal(ensureShortlistLine(picked, picked), picked);
+assert.equal(statusAfterOptions("new"), "shortlist");
+assert.equal(statusAfterOptions("sent"), null);
+assert.equal(statusAfterPick("shortlist"), "awaiting_pick");
+assert.equal(statusAfterPick("new"), "awaiting_pick");
+assert.equal(statusAfterPick("sent"), null);
+assert.equal(statusAfterPick("awaiting_pick"), null);
 
 assert.deepEqual(handoffCc(undefined, "isa@agentbly.com", "ada@exp.com"), ["Kevin.Jones@AgentBly.com", "Deb@AgentBly.com", "isa@agentbly.com"]);
 assert.deepEqual(handoffCc("ops@agentbly.com, Deb@AgentBly.com", "ops@agentbly.com", "ada@exp.com"), ["ops@agentbly.com", "Deb@AgentBly.com"]);
