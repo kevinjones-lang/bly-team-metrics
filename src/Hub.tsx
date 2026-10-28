@@ -25,9 +25,10 @@ export const HUB_TILES: Tile[] = [
   { id: "fub-zillow-rpt", label: "FUB Zillow Reporting", hint: "Kahla login", group: "CRM & leads", href: "https://agentbly1.followupboss.com/2/reporting/zillow-reporting" },
   { id: "kahla-sheet", label: "Kahla Preferred sheet", hint: "Zillow Preferred workbook", group: "CRM & leads", href: "https://docs.google.com/spreadsheets/d/11VPtEWP_482Yt6OVWAZkGxkxXcE7nmI4sP_qKMz6t1s" },
   { id: "rec-master", label: "Recruiting Master Tracker", hint: "Google Sheet", group: "Recruiting", href: "https://docs.google.com/spreadsheets/d/18XXe2ap4b6DqUGgRW8GrT8GUceT7dt2k4VgyglQZpPo/edit" },
+  { id: "calculators", label: "Calculators", hint: "Commission split & business plan", group: "Tools", href: "https://kevinajones.github.io/bly-team-calculators/" },
 ];
 
-const GROUPS = ["Apps", "Metrics", "CRM & leads", "Recruiting"];
+const GROUPS = ["Apps", "Metrics", "CRM & leads", "Recruiting", "Tools"];
 
 export default function Hub() {
   const { href } = useAgent();
