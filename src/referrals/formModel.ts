@@ -272,7 +272,7 @@ export function validateHandoff(form: ReferralForm, purpose: HandoffCheck = "dra
     case "other":
       break;
     case "":
-      return "Choose buy, sell, or lease.";
+      return "Set buyer, seller, or lease on the referral card.";
     default: {
       const _n: never = form.contract;
       return _n;

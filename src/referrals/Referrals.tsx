@@ -2,10 +2,10 @@ import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type React
 import { useAgent } from "../agent";
 import {
   SIDES, STATUSES, blankToNull, ensureShortlistLine, formatDay, formatWhen, handoffCc,
-  fubFields, humanError, isEmail, isSide, isStatus, isTouchDue, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
+  fubFields, humanError, isEmail, isSide, isStatus, isTouchDue, mergeStaffAgents, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusAfterOptions, statusAfterPick, statusLabel, toggleStatusFilter, validateDraft,
   type Side, type Status,
 } from "./logic.ts";
-import { DEFAULT_RECEIVING_BROKERAGE, sideForContract } from "./formModel.ts";
+import { DEFAULT_RECEIVING_BROKERAGE } from "./formModel.ts";
 import { formatShortlistLine } from "../../supabase/functions/referral-agents/logic.ts";
 import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markOutlookDraft, updateReferral, writeBackReferral, type AgentLookup, type AgentOption, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
 import { confirmHandoffSent } from "./confirmSent";
@@ -234,6 +234,7 @@ function Board() {
   const [rows, setRows] = useState<Referral[] | null>(null);
   const [err, setErr] = useState("");
   const [moved, setMoved] = useState(0);
+  const [filter, setFilter] = useState<Status | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -253,6 +254,7 @@ function Board() {
   if (err) return <p className="rh-error" role="alert">{err}</p>;
   if (!rows) return <div className="center"><div className="spinner" /></div>;
   const due = rows.filter((r) => isTouchDue(r.next_touch_on, r.status)).length;
+  const visible = filter ? STATUSES.filter((status) => status === filter) : STATUSES;
   return (
     <div className="stack">
       <p className="caption">New → shortlist → awaiting pick → sent → connected → monthly check → closed. Nurture is the quiet pile. After the handoff email, the next touch is 14 days out. Monthly check moves that to every 30 days. Opening this board files anyone untouched for six months into Nurture.</p>
@@ -260,8 +262,21 @@ function Board() {
       {due > 0 ? <p className="rh-note">{due === 1 ? "1 referral is due" : `${due} referrals are due`} for a touch.</p> : null}
       <ReminderPreview />
       {rows.length === 0 ? <p className="summary">No referrals yet. Create the first one.</p> : null}
-      <div className="rh-board">
+      <div className="rh-filters" role="group" aria-label="Filter the board by status">
+        <button type="button" className={filter === null ? "on" : ""} aria-pressed={filter === null} onClick={() => setFilter((current) => toggleStatusFilter(current, "all"))}>All <span>{rows.length}</span></button>
         {STATUSES.map((status) => {
+          const count = rows.filter((r) => r.status === status).length;
+          const on = filter === status;
+          return (
+            <button key={status} type="button" className={on ? "on" : ""} aria-pressed={on} onClick={() => setFilter((current) => toggleStatusFilter(current, status))}>
+              {statusLabel(status)} <span>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+      {filter ? <p className="rh-note" role="status">Showing {statusLabel(filter)}. Select it again, or All, to show every status.</p> : null}
+      <div className="rh-board">
+        {visible.map((status) => {
           const cards = rows.filter((r) => r.status === status);
           return (
             <section key={status} className="rh-col" aria-label={statusLabel(status)}>
@@ -298,6 +313,7 @@ function eventText(ev: ReferralEvent): string {
 }
 
 function Detail({ id }: { id: string }) {
+  const { list } = useAgent();
   const [row, setRow] = useState<Referral | null>(null);
   const [events, setEvents] = useState<ReferralEvent[]>([]);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -308,6 +324,7 @@ function Detail({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
   const [lookup, setLookup] = useState<AgentLookup | null>(null);
   const [fubMsg, setFubMsg] = useState("");
+  const [receivingOpen, setReceivingOpen] = useState(true);
   const chain = useRef(Promise.resolve());
   const statusRef = useRef<Status>("new");
   const draftRef = useRef(draft);
@@ -323,6 +340,7 @@ function Detail({ id }: { id: string }) {
         setRow(found);
         statusRef.current = found.status;
         setDraft(draftFrom(found));
+        setReceivingOpen(!(found.receiving_agent?.trim() || found.receiving_agent_email?.trim()));
         setEvents(hist);
       } catch (e) {
         if (!cancel) setErr(humanError(e));
@@ -384,6 +402,7 @@ function Detail({ id }: { id: string }) {
       setRow(next);
       setDraft(saved);
       setEvents(await listEvents(id));
+      setReceivingOpen(false);
       setNote(email
         ? `${agent.name} is the receiving agent. Edit the referral form when you are ready. The handoff creates an Outlook draft with the filled PDF attached.`
         : `${agent.name} is selected. Add an email before editing the referral form.`);
@@ -477,6 +496,9 @@ function Detail({ id }: { id: string }) {
   const recordUrl = referralRecordUrl(row.id);
   const cc = handoffCc(CC_ENV, draft.isa_email, draft.receiving_agent_email);
   const entries = parseShortlist(draft.shortlist);
+  const blyNames = mergeStaffAgents(list);
+  const pickedAgent = Boolean(draft.receiving_agent.trim() || draft.receiving_agent_email.trim());
+  const pickedLine = [draft.receiving_agent.trim(), draft.receiving_brokerage.trim()].filter(Boolean).join(" · ");
 
   return (
     <div className="stack">
@@ -491,79 +513,96 @@ function Detail({ id }: { id: string }) {
           ))}
         </div>
       </section>
-      <section className="section">
-        <h2 className="serif">Agent options</h2>
-        <p className="caption">The agent or ISA picks the receiving agent. Kevin and Deb stay on Cc unless they are the one who has to choose.</p>
-        {draft.location.trim() !== (row.location ?? "").trim() ? <p className="caption">Save the client to rank agents for the edited location.</p> : null}
-        <AgentOptions
-          location={row.location ?? ""}
-          selectedEmail={draft.receiving_agent_email}
-          selectedName={draft.receiving_agent}
-          busy={busy}
-          onPick={(agent: AgentOption) => { void choose(agent); }}
-          onListed={onListed}
-        />
-      </section>
-      <ExpShortlist
-        location={row.location ?? ""}
-        exp={lookup?.exp ?? null}
-        loading={false}
-        selectedEmail={draft.receiving_agent_email}
-        selectedName={draft.receiving_agent}
-        busy={busy}
-        onPick={(agent) => { void choose(agent); }}
-      />
+      {receivingOpen ? (
+        <>
+          <section className="section">
+            <h2 className="serif">Agent options</h2>
+            <p className="caption">The agent or ISA picks the receiving agent. Kevin and Deb stay on Cc unless they are the one who has to choose.</p>
+            {draft.location.trim() !== (row.location ?? "").trim() ? <p className="caption">Save the client to rank agents for the edited location.</p> : null}
+            <AgentOptions
+              location={row.location ?? ""}
+              selectedEmail={draft.receiving_agent_email}
+              selectedName={draft.receiving_agent}
+              busy={busy}
+              onPick={(agent: AgentOption) => { void choose(agent); }}
+              onListed={onListed}
+            />
+          </section>
+          <ExpShortlist
+            location={row.location ?? ""}
+            exp={lookup?.exp ?? null}
+            loading={false}
+            selectedEmail={draft.receiving_agent_email}
+            selectedName={draft.receiving_agent}
+            busy={busy}
+            onPick={(agent) => { void choose(agent); }}
+          />
+        </>
+      ) : null}
       <div className="rh-split">
         <section className="section">
           <h2 className="serif">Client</h2>
+          <p className="caption">This card is the only place to edit client details. The referral form uses these values and does not edit them.</p>
           <ClientFields draft={draft} set={set} />
           <FubLookup draft={draft} set={set} onFound={(person) => setDraft((d) => mergePrefill(d, person))} />
           <div className="rh-actions"><button type="button" className="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button></div>
         </section>
         <section className="section">
           <h2 className="serif">Receiving agent</h2>
-          <p className="caption">Pick a card above, or enter the agent here. The form below is filled from this agent. Cc is the ISA, Kevin, and Deb. Creating an Outlook draft does not mark the referral sent. Use “I sent it” after you send the draft from Outlook.</p>
-          <div className="rh-fields">
-            <Field label="Receiving agent"><input value={draft.receiving_agent} onChange={(e) => set({ receiving_agent: e.target.value })} /></Field>
-            <Field label="Receiving agent email"><input type="email" value={draft.receiving_agent_email} onChange={(e) => set({ receiving_agent_email: e.target.value })} /></Field>
-            <Field label="Receiving agent phone"><input value={draft.receiving_agent_phone} onChange={(e) => set({ receiving_agent_phone: e.target.value })} /></Field>
-            <Field label="Receiving brokerage"><input value={draft.receiving_brokerage} onChange={(e) => set({ receiving_brokerage: e.target.value })} placeholder={DEFAULT_RECEIVING_BROKERAGE} /></Field>
-            <Field label="ISA email (Cc)"><input type="email" value={draft.isa_email} onChange={(e) => set({ isa_email: e.target.value })} placeholder="Optional" /></Field>
-            <Field label="Bly Team agent (Follow Up Boss owner)"><input value={draft.fub_owner} onChange={(e) => set({ fub_owner: e.target.value })} placeholder="Required before the Outlook draft" /></Field>
-          </div>
-          <p className="caption">Email only. Required before the Outlook draft, not before preview. Deborah G. Bly stays the originating agent on the PDF.</p>
-          <details className="rh-sources">
-            <summary>Paste a shortlist instead</summary>
-            <p className="caption">One person per line: Name &lt;email&gt; — market.</p>
-            <div className="rh-fields">
-              <Field label="Agent shortlist" wide>
-                <textarea value={draft.shortlist} onChange={(e) => set({ shortlist: e.target.value })} placeholder={"Ada Lovelace <ada@exp.com> — Austin\nGrace Hopper, grace@exp.com"} />
-              </Field>
-              {entries.length ? (
-                <Field label="Use a pasted line">
-                  <select value="" onChange={(e) => {
-                    const entry = entries[Number(e.target.value)];
-                    if (!entry) return;
-                    void choose({ name: entry.name, email: entry.email });
-                  }}>
-                    <option value="">Select an agent</option>
-                    {entries.map((entry, i) => <option key={i} value={i}>{entry.name}{entry.email ? ` · ${entry.email}` : ""}</option>)}
-                  </select>
+          {receivingOpen ? (
+            <>
+              <p className="caption">Pick a card above, or enter the agent here. The form below is filled from this agent. Cc is the ISA, Kevin, and Deb. Creating an Outlook draft does not mark the referral sent.</p>
+              <div className="rh-fields">
+                <Field label="Receiving agent"><input value={draft.receiving_agent} onChange={(e) => set({ receiving_agent: e.target.value })} /></Field>
+                <Field label="Receiving agent email"><input type="email" value={draft.receiving_agent_email} onChange={(e) => set({ receiving_agent_email: e.target.value })} /></Field>
+                <Field label="Receiving agent phone"><input value={draft.receiving_agent_phone} onChange={(e) => set({ receiving_agent_phone: e.target.value })} /></Field>
+                <Field label="Receiving brokerage"><input value={draft.receiving_brokerage} onChange={(e) => set({ receiving_brokerage: e.target.value })} placeholder={DEFAULT_RECEIVING_BROKERAGE} /></Field>
+                <Field label="ISA email (Cc)"><input type="email" value={draft.isa_email} onChange={(e) => set({ isa_email: e.target.value })} placeholder="Optional" /></Field>
+                <Field label="Bly Team agent (Follow Up Boss owner)">
+                  <input value={draft.fub_owner} list="bly-agents" onChange={(e) => set({ fub_owner: e.target.value })} placeholder="Required before the Outlook draft" />
                 </Field>
-              ) : null}
+              </div>
+              <datalist id="bly-agents">
+                {blyNames.map((name) => <option key={name} value={name} />)}
+              </datalist>
+              <p className="caption">Email only. Required before the Outlook draft, not before preview. Deborah G. Bly stays the originating agent on the PDF.</p>
+              <details className="rh-sources">
+                <summary>Paste a shortlist instead</summary>
+                <p className="caption">One person per line: Name &lt;email&gt; — market.</p>
+                <div className="rh-fields">
+                  <Field label="Agent shortlist" wide>
+                    <textarea value={draft.shortlist} onChange={(e) => set({ shortlist: e.target.value })} placeholder={"Ada Lovelace <ada@exp.com> — Austin\nGrace Hopper, grace@exp.com"} />
+                  </Field>
+                  {entries.length ? (
+                    <Field label="Use a pasted line">
+                      <select value="" onChange={(e) => {
+                        const entry = entries[Number(e.target.value)];
+                        if (!entry) return;
+                        void choose({ name: entry.name, email: entry.email });
+                      }}>
+                        <option value="">Select an agent</option>
+                        {entries.map((entry, i) => <option key={i} value={i}>{entry.name}{entry.email ? ` · ${entry.email}` : ""}</option>)}
+                      </select>
+                    </Field>
+                  ) : null}
+                </div>
+              </details>
+              <p className="rh-cc">Cc: {cc.join(", ") || "—"}</p>
+              <div className="rh-actions">
+                <button type="button" className="ghost dark" disabled={!pickedAgent} onClick={() => setReceivingOpen(false)}>Done</button>
+              </div>
+              {!isEmail(draft.receiving_agent_email) ? <p className="caption">Pick an agent card, or enter a receiving agent email, before the form handoff.</p> : null}
+            </>
+          ) : (
+            <div className="rh-picked">
+              <div>
+                <p className="rh-name">{pickedLine || "Receiving agent"}</p>
+                <p className="rh-meta">{draft.receiving_agent_email.trim() || "No email yet"}{draft.receiving_agent_phone.trim() ? ` · ${draft.receiving_agent_phone.trim()}` : ""}</p>
+                <p className="rh-meta">{draft.fub_owner.trim() ? `Bly Team agent: ${draft.fub_owner.trim()}` : "Bly Team agent is not named yet. Change to add one before the Outlook draft."}</p>
+              </div>
+              <button type="button" className="ghost dark" onClick={() => setReceivingOpen(true)}>Change</button>
             </div>
-          </details>
-          <p className="rh-cc">Cc: {cc.join(", ") || "—"}</p>
-          <div className="rh-actions">
-            <button type="button" className="ghost dark" disabled={busy || !isEmail(draft.receiving_agent_email)} onClick={sent}>I sent it</button>
-          </div>
-          {!isEmail(draft.receiving_agent_email) ? <p className="caption">Pick an agent card, or enter a receiving agent email, before the form handoff.</p> : <p className="caption">“I sent it” is only for after the Outlook draft is actually sent. It logs the email, moves an early referral to Sent, and asks Follow Up Boss to tag the existing person. It does not merge contacts. If that update does not stick, use Retry. Do not click I sent it again.</p>}
-          {fubMsg ? <p className="rh-note">{fubMsg}</p> : null}
-          {fubMsg || row.fub_writeback || row.email_count > 0 ? (
-            <div className="rh-actions">
-              <button type="button" className="ghost dark" disabled={busy} onClick={() => { void retryFub(); }}>Retry Follow Up Boss update</button>
-            </div>
-          ) : null}
+          )}
           <h3 className="serif">Follow Up Boss field</h3>
           <p className="caption">Paste this into the custom field <b>Bly Team Referral Hub</b>. New referrals start at <a href={referralNewUrl()}>{referralNewUrl()}</a>.</p>
           <div className="rh-linkrow">
@@ -601,14 +640,13 @@ function Detail({ id }: { id: string }) {
           busy={busy}
           draftAt={row.outlook_draft_at}
           draftLink={row.outlook_draft_web_link}
+          onSent={sent}
+          fubMessage={fubMsg}
+          showFubRetry={Boolean(fubMsg || row.fub_writeback || row.email_count > 0)}
+          onRetryFub={retryFub}
           onPersist={async (form) => {
-            const side = sideForContract(form.contract);
             const next = await updateReferral(id, toWrite({
               ...draftRef.current,
-              client_name: form.clientName,
-              client_email: form.clientEmail,
-              client_phone: form.clientPhone,
-              side: side ?? "",
               receiving_agent: form.receivingAgent,
               receiving_agent_email: form.receivingEmail,
               receiving_agent_phone: form.receivingPhone,
