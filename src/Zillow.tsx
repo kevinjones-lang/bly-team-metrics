@@ -44,7 +44,7 @@ function tipFor(metric: string, rating: Rating): string {
       High: "Seller conversion is strong — keep showcase and follow-through habits.",
       Fair: "Seller conversion needs attention — tighten listing conversations and showcase follow-up.",
       Low: "Seller conversion is below target — rebuild seller pipeline activity this month.",
-      empty: "Seller Connections are blank in Tableau for this refresh — nothing to coach on yet.",
+      empty: "No data in Zillow Reporting yet — Seller Connections are blank in Tableau for this refresh.",
     },
     fub: {
       High: "FUB compliance is solid — keep logging activity the same way.",
@@ -233,7 +233,7 @@ function PerformanceTab({ data, agentRow }: { data: any; agentRow: any | null })
           </div>
         </div>
         <div className="zl-grid cols-2" style={{ marginTop: 12 }}>
-          <MetricCard m={P.seller_connections} tipKey="seller" emptyNote="Seller Connections are blank in this Tableau refresh — no rating or targets to show." />
+          <MetricCard m={P.seller_connections} tipKey="seller" emptyNote="No data in Zillow Reporting yet. Seller Connections are blank in Tableau for this refresh (no rating or target)." />
         </div>
       </section>
 
@@ -271,7 +271,7 @@ function TeamDetailsTab({ data }: { data: any }) {
       {active === "buyer_connections" ? <TeamBuyer block={block} /> : null}
       {active === "zhl" ? <TeamZhl block={block} /> : null}
       {active === "seller_connections" ? (
-        <div className="zl-banner"><b>Seller Connections — blank in Tableau.</b> {block.status || "No seller metrics for May–Oct 2026."}
+        <div className="zl-banner"><b>No data in Zillow Reporting yet.</b> Seller Connections are blank in Tableau for this refresh.
           {block.row_labels?.length ? <div className="zl-meta" style={{ marginTop: 8 }}>Row labels: {block.row_labels.join(" · ")}</div> : null}
         </div>
       ) : null}
@@ -446,7 +446,7 @@ function FunnelTab({ data }: { data: any }) {
       <section className="section">
         <h2 className="serif">Funnel</h2>
         <Seg options={opts} value={active} onChange={setCat} />
-        <div className="zl-banner"><b>Seller Funnel — blank in Tableau.</b> {block.status || "All values zero/blank."}
+        <div className="zl-banner"><b>No data in Zillow Reporting yet.</b> The Seller Connections funnel is blank in Tableau for this refresh.
           {block.stages?.length ? <div className="zl-meta" style={{ marginTop: 8 }}>Stages: {block.stages.map((s: any) => s.stage).join(" → ")}</div> : null}
         </div>
       </section>
@@ -486,10 +486,11 @@ function FunnelTab({ data }: { data: any }) {
           </table>
         </div>
       ) : null}
-      {active === "zhl" && block.opportunities?.rows_top?.length ? (
+      {active === "zhl" && block.opportunities?.rows?.length ? (
         <>
           <h3 className="serif" style={{ fontSize: 18, marginTop: 16 }}>ZHL opportunities (agent counts)</h3>
-          <p className="zl-cap">No consumer PII. {block.opportunities.rows_complete === false ? "Top rows only — roster incomplete in pull." : ""} {block.pii_note || ""}</p>
+          <p className="zl-cap">{block.opportunities.rows.length} agents · counts only, no consumer details.{block.opportunities.rows_complete === false ? " Roster incomplete in this pull." : ""}</p>
+          <OppsCheck o={block.opportunities} />
           <div className="tablewrap">
             <table className="zl-table">
               <thead>
@@ -506,8 +507,8 @@ function FunnelTab({ data }: { data: any }) {
                 </tr>
               </thead>
               <tbody>
-                {(block.opportunities.grand_total ? [block.opportunities.grand_total, ...block.opportunities.rows_top] : block.opportunities.rows_top).map((r: any) => (
-                  <tr key={r.agent}>
+                {(block.opportunities.grand_total ? [block.opportunities.grand_total, ...block.opportunities.rows] : block.opportunities.rows).map((r: any) => (
+                  <tr key={r.agent} style={r.agent === "Grand Total" ? { fontWeight: 600 } : undefined}>
                     <td>{r.agent}</td>
                     <td className="r">{num(r.eligible_preapprovals)}</td>
                     <td className="r">{num(r.eligible_transfers_not_transferred)}</td>
@@ -526,6 +527,36 @@ function FunnelTab({ data }: { data: any }) {
       ) : null}
       {months.length ? <p className="zl-cap">Monthly columns {months[0]}–{months[months.length - 1]} plus Grand Total.</p> : null}
     </section>
+  );
+}
+
+const OPP_LABEL: Record<string, string> = {
+  eligible_preapprovals: "Elig. PA", eligible_transfers_not_transferred: "Not transferred", transfers_not_engaged: "Not engaged",
+  engaged_transfers_no_credit_pulls: "Engaged no CP", credit_pulls_not_preapproved: "CP not PA", preapproved_not_locked: "PA not locked",
+  locked_loans_not_funded: "Locked not funded", funded_loans: "Funded",
+};
+
+// Agent rows vs Tableau grand total, per column. Shows any gap and the blank cell(s) it can sit in; never fills a value.
+function OppsCheck({ o }: { o: any }) {
+  const rows: any[] = o.rows || [];
+  const gt = o.grand_total || {};
+  const gaps = Object.keys(OPP_LABEL)
+    .filter((k) => ok(gt[k]))
+    .map((k) => ({ k, sum: rows.reduce((t, r) => t + (ok(r[k]) ? r[k] : 0), 0), total: gt[k] }))
+    .filter((g) => g.sum !== g.total);
+  if (!gaps.length) return <p className="zl-cap">Agent rows reconcile to the Tableau grand total in every column.</p>;
+  const unres: any[] = o.unresolved_cells || [];
+  return (
+    <div className="zl-banner" style={{ margin: "8px 0" }}>
+      {gaps.map((g) => (
+        <div key={g.k}>
+          <b>{OPP_LABEL[g.k]}:</b> agent rows sum to {num(g.sum)}; Tableau grand total is {num(g.total)}. Grand total shown as Tableau reports it.
+          {unres.filter((u) => u.column === g.k).map((u) => (
+            <span key={u.agent}> Unresolved cell: {u.agent} (blank in the pull; {u.likely ? "sort order suggests it is the missing count" : "not visible in captured screenshots"}).</span>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -611,22 +642,22 @@ function AgentsTab({ data, focus }: { data: any; focus: string | null }) {
           </div>
         </>
       ) : null}
-      {active === "buyer_connections" ? <AgentBuyerSample block={byCat.buyer_connections} focus={focus} /> : null}
-      {active === "zhl" ? <AgentZhlSample block={byCat.zhl} focus={focus} /> : null}
+      {active === "buyer_connections" ? <AgentBuyerBoard block={byCat.buyer_connections} focus={focus} /> : null}
+      {active === "zhl" ? <AgentZhlBoard block={byCat.zhl} focus={focus} /> : null}
       {active === "seller_connections" ? (
-        <div className="zl-banner"><b>Seller Connections — blank.</b> {byCat.seller_connections?.status || "Every agent row is zero/blank in Tableau."}</div>
+        <div className="zl-banner"><b>No data in Zillow Reporting yet.</b> Seller Connections are blank for every agent in Tableau (0 offered / 0 failed live transfers; all other columns empty).</div>
       ) : null}
     </section>
   );
 }
 
-function AgentBuyerSample({ block, focus }: { block: any; focus: string | null }) {
+function AgentBuyerBoard({ block, focus }: { block: any; focus: string | null }) {
   if (!block) return null;
   const g = block.grand_total || {};
-  const sample = block.rows_sample || [];
+  const rows: any[] = block.rows || [];
   return (
     <>
-      <p className="zl-cap">{block.date_window || "Last 3 months"}. <b>Sample rows only</b> — full agent list not transcribed. Team totals below are complete.</p>
+      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents · {block.column_sum_check || ""}.</p>
       <div className="zl-myscore-grid" style={{ margin: "12px 0" }}>
         <div className="zl-stat"><div className="k">Buyer cxns</div><div className="v serif">{num(g.buyer_connections)}</div></div>
         <div className="zl-stat"><div className="k">Pickup rate</div><div className="v serif">{pct(g.pickup_rate)}</div></div>
@@ -651,7 +682,7 @@ function AgentBuyerSample({ block, focus }: { block: any; focus: string | null }
             </tr>
           </thead>
           <tbody>
-            {sample.map((a: any) => (
+            {rows.map((a: any) => (
               <tr key={a.agent} style={focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined}>
                 <td>{a.agent}</td>
                 <td className="r">{num(a.pickups)}</td>
@@ -673,13 +704,13 @@ function AgentBuyerSample({ block, focus }: { block: any; focus: string | null }
   );
 }
 
-function AgentZhlSample({ block, focus }: { block: any; focus: string | null }) {
+function AgentZhlBoard({ block, focus }: { block: any; focus: string | null }) {
   if (!block) return null;
   const g = block.grand_total || {};
-  const sample = block.rows_sample || [];
+  const rows: any[] = block.rows || [];
   return (
     <>
-      <p className="zl-cap">{block.date_window || "Last 3 months"}. <b>Sample rows only</b>. {block.caveat || ""}</p>
+      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents · {block.column_sum_check || ""}.</p>
       <div className="zl-myscore-grid" style={{ margin: "12px 0" }}>
         <div className="zl-stat"><div className="k">Preferred buyer</div><div className="v serif">{num(g.preferred_buyer_connections)}</div></div>
         <div className="zl-stat"><div className="k">Transfers</div><div className="v serif">{num(g.total_transfers)}</div></div>
@@ -704,7 +735,7 @@ function AgentZhlSample({ block, focus }: { block: any; focus: string | null }) 
             </tr>
           </thead>
           <tbody>
-            {sample.map((a: any) => (
+            {rows.map((a: any) => (
               <tr key={a.agent} style={focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined}>
                 <td>{a.agent}</td>
                 <td>{a.preapproval_rating ? <span className={`zl-pill ${a.preapproval_rating}`}>{a.preapproval_rating}</span> : "—"}</td>
@@ -735,6 +766,16 @@ function DetailsTab({ data }: { data: any }) {
   const credit = a.transaction_target_credit || views["Transaction Target Credit"]?.aggregates || {};
   const alloc = views["Connection Allocation"];
   const rtt = views["RTT Performance"];
+  if (d.not_captured || (!Object.keys(a).length && !Object.keys(views).length)) {
+    return (
+      <section className="section">
+        <h2 className="serif">Detail Reports</h2>
+        <div className="zl-banner" style={{ marginTop: 8 }}>
+          <b>No data in Zillow Reporting yet for this mirror.</b> Detail Reports were not pulled for this refresh because those views list contact names; only team and agent totals are mirrored.
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="section">
       <h2 className="serif">Detail Reports</h2>
@@ -876,8 +917,7 @@ function Top10Tab({ data }: { data: any }) {
     <section className="section">
       <h2 className="serif">Top 10 teams</h2>
       <div className="zl-banner" style={{ marginTop: 8 }}>
-        <b>No Top 10 data yet.</b> Kevin locked the Kahla Google Sheet as the only source for this block. The current sheet export has no Top 10 structure, so this section stays empty until that feed exists.
-        {data.top10_teams_note ? <div className="zl-meta" style={{ marginTop: 8 }}>{data.top10_teams_note}</div> : null}
+        <b>No data in Zillow Reporting yet.</b> Top 10 teams come only from Kahla's Google Sheet, and that sheet has no rankings block yet. This section fills in once it does.
       </div>
     </section>
   );
