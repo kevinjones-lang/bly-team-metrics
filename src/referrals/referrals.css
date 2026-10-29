@@ -27,9 +27,13 @@
 .rh-note { background: var(--ivory); border-left: 3px solid var(--gold); padding: 10px 12px; }
 .rh-error p, .rh-note p { margin: 0; }
 .rh-error p + p, .rh-note p + p { margin-top: 6px; }
-.rh-status { display: flex; flex-wrap: wrap; gap: 6px; }
-.rh-status button { min-height: 44px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 6px 10px; }
-.rh-status button.on { background: var(--charcoal); color: var(--paper); border-color: var(--charcoal); }
+.rh-status, .rh-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.rh-status button, .rh-filters button { min-height: 44px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 6px 10px; }
+.rh-status button.on, .rh-filters button.on { background: var(--charcoal); color: var(--paper); border-color: var(--charcoal); }
+.rh-filters button span { font-size: 12px; margin-left: 4px; }
+.referrals .field .rh-readonly { margin: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--soft); background: var(--ivory); color: var(--ink); font-size: 16px; letter-spacing: 0; text-transform: none; white-space: pre-wrap; }
+.rh-picked { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; }
+.rh-picked .rh-name { font-family: var(--serif); font-size: 22px; margin: 0; color: var(--charcoal); }
 .rh-linkrow { display: flex; gap: 8px; align-items: center; }
 .rh-linkrow input { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); background: var(--ivory); min-height: 44px; }
 .rh-sources { background: var(--paper); border: 1px solid var(--soft); padding: 12px 14px; }
