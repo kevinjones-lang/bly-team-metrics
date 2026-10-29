@@ -104,7 +104,7 @@ export default function Dashboard() {
   /** Agent GCI = Total GCI − Company dollar. Deb/Kevin = 0. Missing company dollar treated as 0 when GCI exists. */
   const agentGci = (gci: any, co: any, nm: string) => { if (isCoOwner(nm)) return 0; if (!okNum(gci)) return null; return gci - (okNum(co) ? co : 0); };
   const view = tab === "agents" ? "agent" : tab === "isa" ? "isa" : tab === "coaching" ? "coaching" : "team"; // group comes from the tab
-  const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev, coDollar: o.coDollarX || o.coDollar,
+  const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev, pend: o.pendX ?? o.pend, coDollar: o.coDollarX || o.coDollar,
     mon: o.mon && { ...o.mon, mon_sisu_units: o.mon.mon_sisu_units_x || o.mon.mon_sisu_units, mon_sisu_gci: o.mon.mon_sisu_gci_x || o.mon.mon_sisu_gci, mon_exp_rev: o.mon.mon_exp_rev_x || o.mon.mon_exp_rev } });
   const LRL = lrOn === "on" ? "incl. leases & referrals" : "excl. leases & referrals";
   const key = view === "agent" ? agent : view;
@@ -214,9 +214,9 @@ export default function Dashboard() {
         <Text>{`Showing ${label} · ${PL[per]} (${D.periods[per][0]} to ${D.periods[per][1]}) · GCI ${LRL}. Each figure is labelled with its source.`}</Text>
       </Section>
 
-      <Section heading="Production" caption={`Sisu closings ${LRL} (lease/referral = sale price under $25k, a Ref/Lease address, or an eXp LeaseRental/Referral file). eXp sales counts never include leases/referrals; eXp team revenue follows the toggle. Three GCI figures: gross (Sisu, by close date), team share (eXp, by close date), deposited (P&L, by deposit date). Units are transactions: Sisu buyer and seller records for the same address and close date count as one closing with volume once (GCI from both sides is kept). The unit goes to the team member on the deal; Deborah gets it only when she is alone on it, and her duplicate same-side records are dropped. Co-agented deals split the unit and volume between the agents, so agents sum to the team. Deborah's team-leader share of eXp revenue counts in team totals but on no agent row.`}>
+      <Section heading="Production" caption={`Sisu closings ${LRL} (lease/referral = sale price under $25k, a Ref/Lease address, or an eXp LeaseRental/Referral file). eXp sales counts never include leases/referrals; eXp team revenue follows the toggle. Three GCI figures: gross (Sisu, by close date), team share (eXp, by close date), deposited (P&L, by deposit date). Units (Kevin 2026-10-29): 2026 closed and pending units = unique eXp transaction IDs (digits after the decimal ignored); a deal where we represented both buyer and seller counts 2; co-agented deals split the unit; leases/referrals follow the toggle. Before 2026, units are Sisu transactions: Sisu buyer and seller records for the same address and close date count as one closing with volume once (GCI from both sides is kept). The unit goes to the team member on the deal; Deborah gets it only when she is alone on it, and her duplicate same-side records are dropped. Co-agented deals split the unit and volume between the agents, so agents sum to the team. Deborah's team-leader share of eXp revenue counts in team totals but on no agent row.`}>
         <Table columns={["Metric", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
-          ["Closed units (transactions)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "Sisu closed_dt; eXp report"],
+          ["Closed units (transactions)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "2026: eXp IDs (both sides = 2); earlier: Sisu"],
           ["Closed volume", usd(s.sVol[i]) + (per === "ytd" ? `  (${yoy(s.sVol[2], s.sVol[4])})` : ""), "Sisu trans_amt"],
           ["Total GCI (Sisu gross)", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
           ["Company dollar", usd(s.coDollar?.[i]), "eXp: all-agent Team Revenue (team cuts + 100% Deb/Kevin)"],
@@ -226,7 +226,7 @@ export default function Dashboard() {
           ["Closed sales volume", usd(s.xVol[i]), "eXp report"],
           ["Team revenue (all eXp Team Revenue)", usd(s.xRev[i]), "Same total as Company dollar under the all-agent Team Revenue rule"],
           ["Closed leases / referrals", `${n0(s.lease[i])} / ${n0(s.ref[i])}`, "eXp report"],
-          ["Pending sales (now)", `${n0(s.pend)} · ${usd(s.pendVol)}`, "eXp report"],
+          ["Pending units (now) · sales volume", `${n0(s.pend)} · ${usd(s.pendVol)}`, "eXp report"],
         ]} />
         {view !== "agent" ? (
           <ColumnSeries labels={mNames} series={[{ name: "2025 closings", values: ser(mon.mon_sisu_units, 2025) }, { name: "2026 closings", values: ser(mon.mon_sisu_units, 2026) }]} />
