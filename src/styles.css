@@ -24,6 +24,14 @@ button { font: inherit; cursor: pointer; }
 .gatecard h1 { font-size: 34px; margin: 16px 0 8px; }
 .gatecard .rule { width: 48px; height: 1px; background: var(--gold); margin: 12px auto 20px; }
 .gatecard p { color: #3a3a3a; }
+.gate-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.gate-actions form { display: flex; flex-direction: column; gap: 10px; }
+.gate-actions .primary, .gate-actions .ghost.dark { width: 100%; }
+.gatecard .field { text-align: left; }
+.gatecard .field input { font: inherit; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--ink); padding: 8px 10px; border: 1px solid var(--line); background: var(--paper); border-radius: 2px; width: 100%; min-height: 44px; }
+.gatecard .caption, .gatecard .rh-error { text-align: left; }
+.rh-note ul { margin: 8px 0; padding-left: 18px; }
+.rh-note li { margin: 4px 0; }
 .logoplate { background: var(--paper); padding: 8px 0 16px; }
 .logoplate img { width: min(320px, 100%); height: auto; }
 .asof { color: var(--muted); font-size: 14px; text-align: right; margin-bottom: 4px; }

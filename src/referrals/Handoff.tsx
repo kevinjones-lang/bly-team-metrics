@@ -9,6 +9,7 @@ import { fillReferralPdf, loadReferralTemplate } from "./pdfFill.ts";
 import PdfPreview from "./PdfPreview.tsx";
 import { handoffPayload } from "./outlookDraft.ts";
 import { connectMicrosoft, createStaffDraft, microsoftAccount, microsoftConfigured } from "./outlook.ts";
+import OutlookSetup from "./OutlookSetup.tsx";
 
 type Step = "edit" | "preview";
 
@@ -64,6 +65,9 @@ export default function Handoff(props: {
   onPersist: (form: ReferralForm) => Promise<void>;
   onDraftRecorded: (webLink: string | null) => Promise<void>;
   onSent: () => Promise<void>;
+  fubMessage?: string;
+  showFubRetry?: boolean;
+  onRetryFub?: () => Promise<void>;
 }) {
   const seedRef = useRef(props.seed);
   seedRef.current = props.seed;
@@ -249,6 +253,7 @@ export default function Handoff(props: {
     <section className="section">
       <h2 className="serif">Referral form</h2>
       <p className="caption">Edit the Universal eXp-to-eXp form, preview the filled PDF, create an Outlook draft with that PDF attached, then mark it sent after you send the draft from Outlook. Deborah G. Bly stays the originating agent. Client details come from the referral card. The Bly Team agent who owns the Follow Up Boss lead is named in the email only. Enter that name once, on the receiving agent panel. Preview works before it is filled. The Outlook draft still needs it.</p>
+      <OutlookSetup />
       <p className="rh-steps" aria-label="Handoff steps">
         <span className={step === "edit" ? "on" : ""}>1. Edit</span>
         <span className={step === "preview" ? "on" : ""}>2. Preview</span>
@@ -323,7 +328,13 @@ export default function Handoff(props: {
           <div className="rh-actions">
             <button type="button" className="ghost dark" disabled={locked || !isEmail(form.receivingEmail)} onClick={() => { void props.onSent(); }}>I sent it</button>
           </div>
-          <p className="caption">I sent it is the step after the Outlook draft. Use it only after you send that draft from Outlook. It logs the email and moves an early referral to Sent.</p>
+          <p className="caption">I sent it is the step after the Outlook draft. Use it only after you send that draft from Outlook. It logs the email, moves an early referral to Sent, and asks Follow Up Boss to tag the existing person. It does not merge contacts. If that update does not stick, use Retry. Do not use this button again for the same send.</p>
+          {props.fubMessage ? <p className="rh-note">{props.fubMessage}</p> : null}
+          {props.showFubRetry && props.onRetryFub ? (
+            <div className="rh-actions">
+              <button type="button" className="ghost dark" disabled={locked} onClick={() => { void props.onRetryFub?.(); }}>Retry Follow Up Boss update</button>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {openLink ? <p className="rh-actions"><a className="primary" href={openLink} target="_blank" rel="noopener noreferrer">Open the Outlook draft</a></p> : null}
