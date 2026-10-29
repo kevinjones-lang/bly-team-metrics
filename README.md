@@ -19,9 +19,9 @@ Out-of-area referral workspace for staff, inside this site (Slack sign-in, same 
 | Route | What |
 | --- | --- |
 | `#/hub` | Ops hub. Referral Hub is a tile next to the other applets. |
-| `#/referrals` and `#/referrals/board` | Admin board. Statuses: `new` → `shortlist` → `awaiting_pick` → `sent` → `connected` → `monthly_check` → `closed`, plus `nurture`. |
-| `#/referrals/new` | New referral. Optional `?fub=` person id or Follow Up Boss URL prefills when the Edge Function is configured. |
-| `#/referrals/<id>` | Detail, agent option cards, and the filled-form handoff. |
+| `#/referrals` and `#/referrals/board` | Pipeline board. Five columns: New (not sent yet, including shortlist and awaiting pick), Sent, Connected (including monthly check), Closed, Nurture. |
+| `#/referrals/new` | New referral, opened over the board. Optional `?fub=` person id or Follow Up Boss URL prefills when the Edge Function is configured. |
+| `#/referrals/<id>` | The same record, in a drawer on the board: agent options and the filled-form handoff. |
 
 **Follow Up Boss custom field `Bly Team Referral Hub`.** Paste the record’s GitHub Pages link:
 
@@ -37,7 +37,7 @@ Cadence is stored on the row: the first handoff schedules the next touch 14 days
 
 The preview draws the three pages in the Hub (PDF.js canvases). It does not use an iframe, which stays blank for blob PDFs in Chrome, Safari, and mobile. Open preview and Download filled PDF remain. The Follow Up Boss owner is required for the Outlook draft email, and preview still runs when that name is empty.
 
-On the detail page the referral form stays hidden until a receiving agent email is on the record, from a card, a pasted line, or the email field. The Bly Team agent who owns the Follow Up Boss lead is one field, on the receiving agent panel, and it is still required only when creating the Outlook draft. Directory links are listed once, with the agent cards. Start a referral from the New referral tab; the ops hub tile still opens Referral Hub.
+In the referral drawer the form stays hidden until a receiving agent email is on the record, from a card, a pasted line, or the email field. The Bly Team agent who owns the Follow Up Boss lead is one field, on the receiving agent panel, and it is still required only when creating the Outlook draft. Directory links are listed once, with the agent cards. Start a referral with Add referral on the board. The ops hub tile still opens Referral Hub.
 
 Deborah G. Bly is the originating agent on the PDF (The Bly Team / eXp Realty, LLC, 281-782-5313, team@agentbly.com). The fee defaults to 25% of gross commission. The receiving agent, phone, and email come from the selected card. The email body names the Bly Team agent who owns the Follow Up Boss lead (`fub_owner`) so the receiving agent knows who to follow up with. Cc stays the ISA plus Kevin and Deb.
 
