@@ -9,6 +9,7 @@ import { fillReferralPdf, loadReferralTemplate } from "./pdfFill.ts";
 import PdfPreview from "./PdfPreview.tsx";
 import { handoffPayload } from "./outlookDraft.ts";
 import { connectMicrosoft, createStaffDraft, microsoftAccount, microsoftConfigured } from "./outlook.ts";
+import OutlookSetup from "./OutlookSetup.tsx";
 
 type Step = "edit" | "preview";
 
@@ -226,6 +227,7 @@ export default function Handoff(props: {
     <section className="section">
       <h2 className="serif">Referral form</h2>
       <p className="caption">Edit the Universal eXp-to-eXp form, preview the filled PDF, then create an Outlook draft with that PDF attached. Deborah G. Bly stays the originating agent. The Bly Team agent who owns the Follow Up Boss lead is named in the email only. Enter that name once, on the receiving agent panel. Preview works before it is filled. The Outlook draft still needs it.</p>
+      <OutlookSetup />
       <p className="rh-steps" aria-label="Handoff steps">
         <span className={step === "edit" ? "on" : ""}>1. Edit</span>
         <span className={step === "preview" ? "on" : ""}>2. Preview</span>

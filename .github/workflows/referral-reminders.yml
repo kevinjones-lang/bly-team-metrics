@@ -1,0 +1,74 @@
+name: Referral follow-up reminders
+on:
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      send:
+        description: "Ask the function to send. Slack is still sent only when the Edge secret REFERRAL_REMINDERS_SEND is true."
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preview or send referral reminders
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          CRON_SECRET: ${{ secrets.REFERRAL_REMINDERS_CRON_SECRET }}
+          DISPATCH_SEND: ${{ inputs.send }}
+          VAR_SEND: ${{ vars.REFERRAL_REMINDERS_SEND }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${ANON_KEY}" ] || [ -z "${CRON_SECRET}" ]; then
+            echo "Referral reminders are not configured. Set GitHub secrets VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, and REFERRAL_REMINDERS_CRON_SECRET. Nothing was sent."
+            exit 0
+          fi
+          DRY=true
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${DISPATCH_SEND}" = "true" ]; then
+            DRY=false
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ] && [ "${VAR_SEND}" = "true" ]; then
+            DRY=false
+          fi
+          echo "Calling referral-reminders dryRun=${DRY}. The Edge secret REFERRAL_REMINDERS_SEND must also be true before Slack is called."
+          body=$(printf '{"dryRun":%s,"source":"github-actions"}' "$DRY")
+          code=$(curl -sS -o /tmp/referral-reminders.json -w "%{http_code}" \
+            -X POST "${SUPABASE_URL%/}/functions/v1/referral-reminders" \
+            -H "Content-Type: application/json" \
+            -H "apikey: ${ANON_KEY}" \
+            -H "Authorization: Bearer ${ANON_KEY}" \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            --data "$body")
+          printf '%s' "$code" > /tmp/referral-reminders-code
+          printf '%s' "$DRY" > /tmp/referral-reminders-dry
+          python3 - << 'PY'
+          import json
+          code = open("/tmp/referral-reminders-code").read().strip()
+          dry = open("/tmp/referral-reminders-dry").read().strip() == "true"
+          raw = open("/tmp/referral-reminders.json").read()
+          try:
+              body = json.loads(raw)
+          except Exception:
+              body = {"raw": raw[:500]}
+          if isinstance(body, dict):
+              shown = {key: body.get(key) for key in ("dryRun", "sent", "message", "error") if key in body}
+              reminders = body.get("reminders")
+              shown["reminders"] = len(reminders) if isinstance(reminders, list) else None
+          else:
+              shown = {"body": "unreadable"}
+          print(code, json.dumps(shown))
+          if code == "404":
+              print("referral-reminders is not deployed. Nothing was sent.")
+              raise SystemExit(0)
+          if code == "503" and dry:
+              print("referral-reminders is not ready. Nothing was sent.")
+              raise SystemExit(0)
+          if isinstance(body, dict) and body.get("dryRun") is True and body.get("sent") not in (0, None):
+              raise SystemExit("Dry run reported sent messages.")
+          if not code.startswith("2"):
+              raise SystemExit(f"referral-reminders returned {code}")
+          PY

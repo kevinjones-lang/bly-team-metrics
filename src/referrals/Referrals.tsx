@@ -7,8 +7,11 @@ import {
 } from "./logic.ts";
 import { DEFAULT_RECEIVING_BROKERAGE, sideForContract } from "./formModel.ts";
 import { formatShortlistLine } from "../../supabase/functions/referral-agents/logic.ts";
-import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markOutlookDraft, markSent, updateReferral, type AgentLookup, type AgentOption, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
+import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markOutlookDraft, updateReferral, writeBackReferral, type AgentLookup, type AgentOption, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
+import { confirmHandoffSent } from "./confirmSent";
 import AgentOptions from "./AgentOptions";
+import ExpShortlist from "./ExpShortlist";
+import ReminderPreview from "./ReminderPreview";
 import "./referrals.css";
 
 const Handoff = lazy(() => import("./Handoff.tsx"));
@@ -255,6 +258,7 @@ function Board() {
       <p className="caption">New → shortlist → awaiting pick → sent → connected → monthly check → closed. Nurture is the quiet pile. After the handoff email, the next touch is 14 days out. Monthly check moves that to every 30 days. Opening this board files anyone untouched for six months into Nurture.</p>
       {moved > 0 ? <p className="rh-note">{moved === 1 ? "1 referral moved to nurture" : `${moved} referrals moved to nurture`} after six months without a touch.</p> : null}
       {due > 0 ? <p className="rh-note">{due === 1 ? "1 referral is due" : `${due} referrals are due`} for a touch.</p> : null}
+      <ReminderPreview />
       {rows.length === 0 ? <p className="summary">No referrals yet. Create the first one.</p> : null}
       <div className="rh-board">
         {STATUSES.map((status) => {
@@ -288,6 +292,8 @@ function eventText(ev: ReferralEvent): string {
   }
   if (ev.kind === "email_sent") return `Handoff email logged (count ${String(detail.email_count ?? "")})`;
   if (ev.kind === "draft_created") return "Outlook draft created. Not sent yet.";
+  if (ev.kind === "fub_writeback") return "Follow Up Boss updated. Tag, stage, and note. Contacts were not merged.";
+  if (ev.kind === "reminder") return "Follow-up reminder sent.";
   return ev.kind;
 }
 
@@ -300,6 +306,8 @@ function Detail({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [missing, setMissing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [lookup, setLookup] = useState<AgentLookup | null>(null);
+  const [fubMsg, setFubMsg] = useState("");
   const chain = useRef(Promise.resolve());
   const statusRef = useRef<Status>("new");
   const draftRef = useRef(draft);
@@ -331,15 +339,18 @@ function Detail({ id }: { id: string }) {
     return run;
   };
 
-  const onListed = (result: AgentLookup) => enqueue(async () => {
-    if (result.tier === "unplaced" || result.agents.length === 0) return;
-    const next = statusAfterOptions(statusRef.current);
-    if (!next) return;
-    const updated = await updateReferral(id, { status: next });
-    statusRef.current = updated.status;
-    setRow(updated);
-    setEvents(await listEvents(id));
-  });
+  const onListed = (result: AgentLookup) => {
+    setLookup(result);
+    return enqueue(async () => {
+      if (result.tier === "unplaced" || result.agents.length === 0) return;
+      const next = statusAfterOptions(statusRef.current);
+      if (!next) return;
+      const updated = await updateReferral(id, { status: next });
+      statusRef.current = updated.status;
+      setRow(updated);
+      setEvents(await listEvents(id));
+    });
+  };
 
   const choose = (agent: { name: string; email: string; phone?: string; place?: string; distanceLabel?: string; level?: string }) => enqueue(async () => {
     const email = isEmail(agent.email) ? agent.email.trim() : "";
@@ -423,14 +434,35 @@ function Detail({ id }: { id: string }) {
 
   const sent = async () => {
     if (!isEmail(draft.receiving_agent_email)) { setErr("Add the receiving agent’s email before logging the send."); return; }
-    setBusy(true); setErr(""); setNote("");
+    setBusy(true); setErr(""); setNote(""); setFubMsg("");
     try {
-      const next = await markSent({ id, agent: draft.receiving_agent.trim(), email: draft.receiving_agent_email.trim(), isa: draft.isa_email.trim(), shortlist: draft.shortlist });
+      const { referral: next, fubMessage } = await confirmHandoffSent({ id, agent: draft.receiving_agent.trim(), email: draft.receiving_agent_email.trim(), isa: draft.isa_email.trim(), shortlist: draft.shortlist });
       statusRef.current = next.status;
       setRow(next);
       setDraft(draftFrom(next));
       setEvents(await listEvents(id));
-      setNote(`Logged. Emails: ${next.email_count}. Next touch ${formatDay(next.next_touch_on)} (${next.cadence}).`);
+      setFubMsg(fubMessage);
+      setNote(`Logged. Emails: ${next.email_count}. Next touch ${formatDay(next.next_touch_on)} (${next.cadence}). ${fubMessage}`);
+    } catch (e) {
+      setErr(humanError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retryFub = async () => {
+    setBusy(true); setErr(""); setFubMsg("");
+    try {
+      const fub = await writeBackReferral(id);
+      const [next, hist] = await Promise.all([getReferral(id), listEvents(id)]);
+      if (next) {
+        statusRef.current = next.status;
+        setRow(next);
+        setDraft(draftFrom(next));
+      }
+      setEvents(hist);
+      setFubMsg(fub.message);
+      setNote(fub.message);
     } catch (e) {
       setErr(humanError(e));
     } finally {
@@ -472,6 +504,15 @@ function Detail({ id }: { id: string }) {
           onListed={onListed}
         />
       </section>
+      <ExpShortlist
+        location={row.location ?? ""}
+        exp={lookup?.exp ?? null}
+        loading={false}
+        selectedEmail={draft.receiving_agent_email}
+        selectedName={draft.receiving_agent}
+        busy={busy}
+        onPick={(agent) => { void choose(agent); }}
+      />
       <div className="rh-split">
         <section className="section">
           <h2 className="serif">Client</h2>
@@ -516,7 +557,13 @@ function Detail({ id }: { id: string }) {
           <div className="rh-actions">
             <button type="button" className="ghost dark" disabled={busy || !isEmail(draft.receiving_agent_email)} onClick={sent}>I sent it</button>
           </div>
-          {!isEmail(draft.receiving_agent_email) ? <p className="caption">Pick an agent card, or enter a receiving agent email, before the form handoff.</p> : <p className="caption">“I sent it” is only for after the Outlook draft is actually sent. It logs the email and moves an early referral to Sent.</p>}
+          {!isEmail(draft.receiving_agent_email) ? <p className="caption">Pick an agent card, or enter a receiving agent email, before the form handoff.</p> : <p className="caption">“I sent it” is only for after the Outlook draft is actually sent. It logs the email, moves an early referral to Sent, and asks Follow Up Boss to tag the existing person. It does not merge contacts. If that update does not stick, use Retry. Do not click I sent it again.</p>}
+          {fubMsg ? <p className="rh-note">{fubMsg}</p> : null}
+          {fubMsg || row.fub_writeback || row.email_count > 0 ? (
+            <div className="rh-actions">
+              <button type="button" className="ghost dark" disabled={busy} onClick={() => { void retryFub(); }}>Retry Follow Up Boss update</button>
+            </div>
+          ) : null}
           <h3 className="serif">Follow Up Boss field</h3>
           <p className="caption">Paste this into the custom field <b>Bly Team Referral Hub</b>. New referrals start at <a href={referralNewUrl()}>{referralNewUrl()}</a>.</p>
           <div className="rh-linkrow">

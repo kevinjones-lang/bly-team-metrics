@@ -1,9 +1,10 @@
 import { supabase } from "../sb";
 import type { Side, Status } from "./logic";
 import type { OutlookDraftInput } from "./outlookDraft.ts";
-import type { AgentLookup, PublicAgent } from "../../supabase/functions/referral-agents/logic.ts";
+import type { AgentLookup as RankedLookup, PublicAgent } from "../../supabase/functions/referral-agents/logic.ts";
+import type { ExpShortlist } from "../../supabase/functions/referral-agents/expShortlist.ts";
 
-export type { AgentLookup };
+export type AgentLookup = RankedLookup & { exp?: ExpShortlist };
 export type AgentOption = PublicAgent;
 
 export type Cadence = "biweekly" | "monthly";
@@ -36,6 +37,9 @@ export type Referral = {
   fub_owner: string | null;
   outlook_draft_at: string | null;
   outlook_draft_web_link: string | null;
+  fub_writeback?: Record<string, unknown> | null;
+  fub_writeback_at?: string | null;
+  last_reminder_at?: string | null;
   isa_email: string | null;
   nurture_at: string | null;
   closed_at: string | null;
@@ -212,4 +216,34 @@ export async function lookupFub(person: string): Promise<FubPrefill> {
   const body = data as { person?: FubPrefill } | null;
   if (!body?.person) throw new Error("Follow Up Boss returned an empty person.");
   return { ...body.person, owner: typeof body.person.owner === "string" ? body.person.owner : "" };
+}
+
+export type FubWritebackResult = {
+  ok: boolean;
+  dryRun: boolean;
+  message: string;
+};
+
+/** Records the referral on the existing Follow Up Boss person. Does not merge contacts. */
+export async function writeBackReferral(referralId: string): Promise<FubWritebackResult> {
+  const { data, error } = await supabase.functions.invoke("referral-fub", { body: { action: "writeback", referralId } });
+  if (error) {
+    let msg = error.message;
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.json === "function") {
+      try {
+        const body = await ctx.json() as { error?: unknown; message?: unknown };
+        if (typeof body?.message === "string" && body.message) msg = body.message;
+        else if (typeof body?.error === "string" && body.error) msg = body.error;
+      } catch { /* response body already consumed or empty */ }
+    }
+    throw new Error(msg);
+  }
+  const body = data as { ok?: unknown; dryRun?: unknown; message?: unknown; error?: unknown } | null;
+  if (typeof body?.error === "string" && body.error) throw new Error(body.error);
+  return {
+    ok: body?.ok === true,
+    dryRun: body?.dryRun === true,
+    message: typeof body?.message === "string" ? body.message : "Follow Up Boss write-back finished.",
+  };
 }

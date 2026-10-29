@@ -7,7 +7,9 @@ import {
   FFM_KML_URL, buildLookup, locateAgents, parseFfmKml, zipIndex,
   type FfmAgent,
 } from "./logic.ts";
+import { expShortlistFromDirectory, parseExpDirectory, stubExpShortlist, type ExpDirectoryAgent } from "./expShortlist.ts";
 import cache from "./ffm-agents.json" with { type: "json" };
+import expCache from "./exp-agents.json" with { type: "json" };
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -65,6 +67,32 @@ function scheduleRefresh(base: FfmAgent[]): void {
   if (waitUntil) waitUntil(job);
 }
 
+function bundledExp(): ExpDirectoryAgent[] {
+  return parseExpDirectory(expCache);
+}
+
+async function loadExpAgents(): Promise<{ agents: ExpDirectoryAgent[]; source: string; warning?: string }> {
+  const url = (Deno.env.get("EXP_DIRECTORY_JSON_URL") ?? "").trim();
+  if (!url) return { agents: bundledExp(), source: "bundled" };
+  let parsed: URL;
+  try { parsed = new URL(url); } catch {
+    return { agents: bundledExp(), source: "bundled", warning: "EXP_DIRECTORY_JSON_URL is not a URL." };
+  }
+  if (parsed.protocol !== "https:") return { agents: bundledExp(), source: "bundled", warning: "EXP_DIRECTORY_JSON_URL must be https." };
+  try {
+    const res = await fetch(parsed, {
+      headers: { Accept: "application/json", "User-Agent": UA },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return { agents: bundledExp(), source: "bundled", warning: `The eXp directory URL returned ${res.status}.` };
+    const text = await res.text();
+    if (text.length > 1_500_000) return { agents: bundledExp(), source: "bundled", warning: "The eXp directory URL was too large." };
+    return { agents: parseExpDirectory(JSON.parse(text)), source: "url" };
+  } catch {
+    return { agents: bundledExp(), source: "bundled", warning: "The eXp directory URL could not be read." };
+  }
+}
+
 function agentsNow(): { agents: FfmAgent[]; live: boolean; asOf: string } {
   const file = bundled();
   if (memory && Date.now() - memory.at < TTL_MS) {
@@ -100,5 +128,19 @@ Deno.serve(async (req) => {
   } catch {
     origin = null;
   }
-  return j(buildLookup({ query: location, origin, agents, live, asOf }));
+  const lookup = buildLookup({ query: location, origin, agents, live, asOf });
+  let exp = stubExpShortlist(location);
+  try {
+    const directory = await loadExpAgents();
+    exp = expShortlistFromDirectory({
+      location,
+      origin,
+      agents: directory.agents,
+      source: directory.source,
+      warning: directory.warning,
+    });
+  } catch {
+    exp = stubExpShortlist(location, "error");
+  }
+  return j({ ...lookup, exp });
 });

@@ -1,0 +1,5 @@
+{
+  "source": "none",
+  "note": "Empty on purpose. The public eXp directory search requires reCAPTCHA and does not publish a stable top-5 ranking. Fill this file, or set EXP_DIRECTORY_JSON_URL, when a credentialed or staff-maintained export exists.",
+  "agents": []
+}

@@ -3,7 +3,9 @@ import { type Session } from "@supabase/supabase-js";
 import { supabase } from "./sb";
 import { setData } from "./Dashboard";
 import Layout from "./Layout";
-import { restoreHash, saveReturn } from "./agent";
+import { restoreHash } from "./agent";
+import SignIn from "./auth/SignIn";
+import { resolveStaff } from "./auth/staffSession";
 
 restoreHash(); // land where you left off (new tab, back button, Slack sign-in redirect)
 
@@ -28,9 +30,22 @@ export default function App() {
     if (!uid) return; // token refreshes keep the same user: no refetch, no remount, no lost place
     (async () => {
       if (!payload) setState("loading");
-      const { data: staff, error: e1 } = await supabase.rpc("is_staff");
-      if (e1) { setState("error"); return; }
-      if (!staff) { setState("restricted"); return; }
+      const staff = await resolveStaff();
+      switch (staff) {
+        case "error":
+          setState("error");
+          return;
+        case "restricted":
+          setState("restricted");
+          return;
+        case "staff":
+          break;
+        default: {
+          const _n: never = staff;
+          setState("error");
+          return _n;
+        }
+      }
       const { data, error } = await supabase.from("metrics_snapshots").select("snap_date,payload").order("snap_date", { ascending: false }).limit(1);
       if (error) { setState("error"); return; }
       if (!data || !data.length) { setState("nodata"); return; }
@@ -38,7 +53,6 @@ export default function App() {
     })();
   }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const signIn = () => { saveReturn(); return supabase.auth.signInWithOAuth({ provider: "slack_oidc", options: { redirectTo: SITE } }); };
   const signOut = () => supabase.auth.signOut();
 
   if (state === "ready") return <Layout payload={payload} asOf={asOf} right={<button className="ghost" onClick={signOut}>Sign out</button>} />;
@@ -57,12 +71,12 @@ export default function App() {
             <h1 className="serif">Ops hub</h1>
             <p className="rule" />
             <p>Operations hub for The Bly Team — metrics, referrals, CRM, recruiting, and team sites. Staff access only.</p>
-            <button className="primary" onClick={signIn}>Sign in with Slack</button>
+            <SignIn redirectTo={SITE} />
           </div>) : null}
         {state === "restricted" ? (
           <div className="gatecard">
             <h1 className="serif">Access restricted</h1><p className="rule" />
-            <p>{`Signed in as ${session?.user.email ?? "unknown"}. This dashboard is limited to Bly Team admins. Ask Kevin if you need access.`}</p>
+            <p>{`Signed in as ${session?.user.email ?? "unknown"}. This dashboard is limited to Bly Team admins. Slack, Google, and email use that same staff list. Ask Kevin if you need access.`}</p>
             <button className="ghost dark" onClick={signOut}>Sign out</button>
           </div>) : null}
         {state === "nodata" ? <div className="gatecard"><h1 className="serif">No snapshot yet</h1><p className="rule" /><p>The daily data load has not run yet. Check back after the next pipeline run.</p></div> : null}
