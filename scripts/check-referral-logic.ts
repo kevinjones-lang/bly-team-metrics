@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  STATUSES, ensureShortlistLine, fubFields, handoffBody, handoffCc, handoffSubject, isTouchDue, parseFubPersonId, parseShortlist,
-  referralNewUrl, referralRecordUrl, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
+  STAFF_AGENTS, STATUSES, ensureShortlistLine, fubFields, handoffBody, handoffCc, handoffSubject, isTouchDue, mergeStaffAgents, parseFubPersonId, parseShortlist,
+  referralNewUrl, referralRecordUrl, statusAfterOptions, statusAfterPick, statusLabel, toggleStatusFilter, validateDraft,
 } from "../src/referrals/logic.ts";
 import { formatShortlistLine } from "../supabase/functions/referral-agents/logic.ts";
 
@@ -63,6 +63,26 @@ for (const rel of [
   assert.equal(text.includes("mailto:"), false, rel);
 }
 assert.equal(referralNewUrl(), "https://kevinjones-lang.github.io/bly-team-metrics/#/referrals/new");
+
+const sheryl = STAFF_AGENTS.find((agent) => agent.name === "Sheryl Haag");
+assert.ok(sheryl, "Sheryl Haag is a Bly Team agent");
+assert.equal(sheryl?.email, "");
+assert.equal(sheryl?.phone, "");
+assert.deepEqual(mergeStaffAgents(["Kevin Jones", "Sheryl Haag"]), ["Kevin Jones", "Sheryl Haag"]);
+assert.equal(mergeStaffAgents([]).includes("Sheryl Haag"), true);
+assert.equal(toggleStatusFilter(null, "sent"), "sent");
+assert.equal(toggleStatusFilter("sent", "sent"), null);
+assert.equal(toggleStatusFilter("sent", "all"), null);
+assert.equal(toggleStatusFilter("new", "closed"), "closed");
+
+const handoffUi = readFileSync(new URL("../src/referrals/Handoff.tsx", import.meta.url), "utf8");
+const referralUi = readFileSync(new URL("../src/referrals/Referrals.tsx", import.meta.url), "utf8");
+assert.equal(handoffUi.includes(">I sent it<"), true);
+assert.equal(referralUi.includes(">I sent it<"), false);
+assert.equal(handoffUi.includes("edit({ clientName"), false);
+assert.equal(handoffUi.includes("edit({ clientEmail"), false);
+assert.equal(handoffUi.includes("edit({ clientPhone"), false);
+assert.equal(handoffUi.includes("referral card"), true);
 
 assert.equal(validateDraft({ client_name: "", client_email: "a@b.co", client_phone: "3465550100", side: "" }), "Name is required.");
 assert.equal(validateDraft({ client_name: "Ada", client_email: "nope", client_phone: "3465550100", side: "buyer" }), "A valid email is required.");

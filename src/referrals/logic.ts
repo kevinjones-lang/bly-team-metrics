@@ -17,6 +17,31 @@ export function isStatus(v: string): v is Status {
   return (STATUSES as readonly string[]).includes(v);
 }
 
+/** Bly Team people who stay on the staff agent list when a metrics snapshot omits them. */
+export type StaffAgent = { name: string; email: string; phone: string };
+
+/**
+ * Sheryl Haag is a Bly Team agent. This repo has no email or phone for her
+ * (not in the handoff Cc list, the originating-agent record, or the FFM cache),
+ * so both stay blank.
+ */
+export const STAFF_AGENTS: readonly StaffAgent[] = [
+  { name: "Sheryl Haag", email: "", phone: "" },
+];
+
+/** Union snapshot agent names with staff who must always be listed. */
+export function mergeStaffAgents(names: readonly string[]): string[] {
+  const tidy = (s: string) => s.replace(/\s+/g, " ").trim();
+  const extra = STAFF_AGENTS.map((agent) => agent.name);
+  return Array.from(new Set([...names, ...extra].map(tidy))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+/** Clicking the active status, or All, clears the board filter. */
+export function toggleStatusFilter(current: Status | null, picked: Status | "all"): Status | null {
+  if (picked === "all" || current === picked) return null;
+  return picked;
+}
+
 export function statusLabel(s: Status): string {
   switch (s) {
     case "new": return "New";

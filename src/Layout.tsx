@@ -2,6 +2,7 @@ import "./fubaudit.css";
 import { useEffect, useState, type ReactNode } from "react";
 import { NAV } from "./nav";
 import { AgentProvider, AgentSelect, useAgent, isExcluded, norm, saveScroll, restoreScroll, rememberHash } from "./agent";
+import { mergeStaffAgents } from "./referrals/logic.ts";
 
 const routeOf = () => { const id = window.location.hash.replace(/^#\/?/, "").split(/[/?]/)[0]; return NAV.some((n) => n.id === id) ? id : NAV[0].id; };
 export function useRoute() {
@@ -15,12 +16,14 @@ export function useRoute() {
 
 export function agentList(payload: any): string[] {
   const m = payload?.main; const src: string[] = m?.agent_list ?? Object.keys(m?.by_agent ?? {});
-  return Array.from(new Set(src.map(norm))).filter((n) => n && !isExcluded(n)).sort((a, b) => a.localeCompare(b));
+  return mergeStaffAgents(src.map(norm)).filter((n) => !isExcluded(n));
 }
-export default function Layout(props: { right?: ReactNode; payload: any; asOf?: string }) {
+const METRICS_ROUTES = new Set(["team", "myt", "fub-audit", "fello", "zillow", "recruiting"]);
+
+export default function Layout(props: { right?: ReactNode; payload: any; asOf?: string; metricsPending?: boolean }) {
   return <AgentProvider list={agentList(props.payload)}><Inner {...props} /></AgentProvider>;
 }
-function Inner({ right, payload, asOf }: { right?: ReactNode; payload: any; asOf?: string }) {
+function Inner({ right, payload, asOf, metricsPending }: { right?: ReactNode; payload: any; asOf?: string; metricsPending?: boolean }) {
   const { agent, href } = useAgent();
   const route = useRoute();
   const [open, setOpen] = useState(false);
@@ -51,7 +54,9 @@ function Inner({ right, payload, asOf }: { right?: ReactNode; payload: any; asOf
         <div className="scrim" onClick={() => setOpen(false)} />
         <main className="content">
           {asOf && (route === "team" || route === "hub") ? <div className="asof">Snapshot {asOf}</div> : null}
-          <div className="dash" key={item.id + "|" + (agent ?? "")}>{item.render(payload)}</div>
+          {metricsPending && !payload && METRICS_ROUTES.has(route)
+            ? <div className="center"><div className="spinner" /><p className="caption">Loading the metrics snapshot…</p></div>
+            : <div className="dash" key={item.id + "|" + (agent ?? "")}>{item.render(payload)}</div>}
           <footer className="foot serif">Built to multiply.</footer>
         </main>
       </div>
