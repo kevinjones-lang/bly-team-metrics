@@ -4,6 +4,10 @@ import {
   STAFF_AGENTS, STATUSES, ensureShortlistLine, fubFields, handoffBody, handoffCc, handoffSubject, isTouchDue, mergeStaffAgents, parseFubPersonId, parseShortlist,
   referralNewUrl, referralRecordUrl, statusAfterOptions, statusAfterPick, statusLabel, toggleStatusFilter, validateDraft,
 } from "../src/referrals/logic.ts";
+import {
+  FEE_RATE_LABEL, cardMatches, stageLabel, stageOf, statusForStageMove, statusesInStage, STAGES, toggleFilter, visibleStages,
+  type BoardCard,
+} from "../src/referrals/stages.ts";
 import { formatShortlistLine } from "../supabase/functions/referral-agents/logic.ts";
 
 const id = "12345";
@@ -95,5 +99,62 @@ assert.equal(isTouchDue("2999-01-01", "monthly_check", new Date("2026-10-27T18:0
 assert.equal(isTouchDue(null, "connected"), false);
 
 for (const s of STATUSES) assert.ok(statusLabel(s).length > 0);
+
+assert.deepEqual(STAGES.map(stageLabel), ["New", "Sent", "Connected", "Closed", "Nurture"]);
+for (const status of STATUSES) assert.ok(STAGES.includes(stageOf(status)));
+assert.deepEqual(statusesInStage("new"), ["new", "shortlist", "awaiting_pick"]);
+assert.deepEqual(statusesInStage("sent"), ["sent"]);
+assert.deepEqual(statusesInStage("connected"), ["connected", "monthly_check"]);
+assert.deepEqual(statusesInStage("closed"), ["closed"]);
+assert.deepEqual(statusesInStage("nurture"), ["nurture"]);
+assert.equal(statusForStageMove("shortlist", "new"), "shortlist");
+assert.equal(statusForStageMove("monthly_check", "connected"), "monthly_check");
+assert.equal(statusForStageMove("sent", "connected"), "connected");
+assert.equal(statusForStageMove("awaiting_pick", "sent"), "sent");
+assert.equal(statusForStageMove("connected", "nurture"), "nurture");
+assert.equal(statusForStageMove("closed", "new"), "new");
+assert.deepEqual(toggleFilter([], { kind: "status", status: "sent" }), [{ kind: "status", status: "sent" }]);
+assert.deepEqual(toggleFilter([{ kind: "status", status: "sent" }], { kind: "status", status: "sent" }), []);
+assert.deepEqual(toggleFilter([{ kind: "status", status: "sent" }], { kind: "status", status: "closed" }), [{ kind: "status", status: "closed" }]);
+assert.deepEqual(visibleStages([{ kind: "band", band: "active" }]), ["new", "sent"]);
+assert.deepEqual(visibleStages([{ kind: "status", status: "monthly_check" }]), ["connected"]);
+assert.deepEqual(visibleStages([{ kind: "band", band: "active" }, { kind: "status", status: "closed" }]), []);
+
+const sample: BoardCard = {
+  id: "sample", clientName: "Ada", location: "Austin, TX", side: "buyer", status: "sent",
+  receivingAgent: "Grace", blyAgent: "Jordan", emailCount: 1, lastEmailAt: null, lastTouchAt: "2026-01-01T00:00:00.000Z",
+  nextTouchOn: "2020-01-01", updatedAt: "2026-01-01T00:00:00.000Z",
+};
+const quiet: BoardCard = { ...sample, id: "quiet", status: "new", nextTouchOn: null };
+const now = new Date("2026-10-29T18:00:00Z");
+assert.equal(cardMatches(sample, [{ kind: "due" }], "", now), true);
+assert.equal(cardMatches(quiet, [{ kind: "due" }], "", now), false);
+assert.equal(cardMatches(sample, [], "grace"), true);
+assert.equal(cardMatches(sample, [], "nobody"), false);
+assert.equal(FEE_RATE_LABEL, "25%");
+
+const tokens = readFileSync(new URL("../src/referrals/tokens.css", import.meta.url), "utf8");
+const boardCss = readFileSync(new URL("../src/referrals/board.css", import.meta.url), "utf8");
+const boardView = readFileSync(new URL("../src/referrals/BoardView.tsx", import.meta.url), "utf8");
+const mock = readFileSync(new URL("../src/referrals/mockBoard.ts", import.meta.url), "utf8");
+assert.equal(tokens.includes(":root"), false);
+assert.ok(tokens.includes("--color-canvas: #f4efe6"));
+assert.ok(tokens.includes("--color-column: #eceff3"));
+assert.ok(tokens.includes("--color-border-card: #e6e8ec"));
+assert.ok(tokens.includes("--color-accent: #1f4a3a"));
+assert.ok(tokens.includes("--font-sans: Outfit"));
+assert.ok(tokens.includes("--font-serif: Fraunces"));
+assert.ok(tokens.includes("--size-column: 300px"));
+assert.ok(tokens.includes("--radius-card: 8px"));
+assert.ok(tokens.includes("--opacity-dragging: 0.45"));
+assert.ok(tokens.includes("--shadow-drop:"));
+assert.ok(tokens.includes("--color-warning: #8a5a1b"));
+assert.ok(tokens.includes("--color-success: #2f6b4a"));
+assert.equal(/#[0-9a-f]{3,8}/i.test(boardCss), false);
+assert.equal(/rgb\(/i.test(boardCss), false);
+for (const name of boardCss.matchAll(/var\((--[a-z0-9-]+)/g)) assert.ok(tokens.includes(name[1]), name[1]);
+assert.equal(/#[0-9a-f]{3,8}/i.test(boardView), false);
+assert.equal(mock.includes("@"), false);
+assert.equal(/\d{3}[-.)]\d{3}/.test(mock), false);
 
 console.log("referral logic ok");

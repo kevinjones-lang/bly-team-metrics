@@ -1,10 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useAgent } from "../agent";
+import BoardView, { ReferralDrawer } from "./BoardView.tsx";
 import {
   SIDES, STATUSES, blankToNull, ensureShortlistLine, formatDay, formatWhen, handoffCc,
-  fubFields, humanError, isEmail, isSide, isStatus, isTouchDue, mergeStaffAgents, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusAfterOptions, statusAfterPick, statusLabel, toggleStatusFilter, validateDraft,
+  fubFields, humanError, isEmail, isSide, isStatus, mergeStaffAgents, parseFubPersonId, parseShortlist, referralNewUrl, referralRecordUrl, sideLabel, statusAfterOptions, statusAfterPick, statusLabel, validateDraft,
   type Side, type Status,
 } from "./logic.ts";
+import { statusForStageMove, type BoardCard, type Stage } from "./stages.ts";
 import { DEFAULT_RECEIVING_BROKERAGE } from "./formModel.ts";
 import { formatShortlistLine } from "../../supabase/functions/referral-agents/logic.ts";
 import { applySilence, createReferral, getReferral, listEvents, listReferrals, lookupFub, markOutlookDraft, updateReferral, writeBackReferral, type AgentLookup, type AgentOption, type FubPrefill, type Referral, type ReferralEvent, type ReferralWrite } from "./api";
@@ -183,7 +185,7 @@ function FubLookup(props: { draft: Draft; set: (patch: Partial<Draft>) => void; 
   );
 }
 
-function NewReferral() {
+function NewReferral({ heading = true }: { heading?: boolean }) {
   const { href } = useAgent();
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [err, setErr] = useState("");
@@ -217,7 +219,7 @@ function NewReferral() {
 
   return (
     <form className="section" onSubmit={onSubmit}>
-      <h2 className="serif">New referral</h2>
+      {heading ? <h2 className="serif">New referral</h2> : null}
       <p className="caption">Name, email, and phone are required. After you save, agent profiles near the location are the next step. The form handoff stays closed until a receiving agent email is on the record.</p>
       {err ? <p className="rh-error" role="alert">{err}</p> : null}
       <ClientFields draft={draft} set={set} />
@@ -229,12 +231,33 @@ function NewReferral() {
   );
 }
 
-function Board() {
-  const { href } = useAgent();
+function toBoardCard(row: Referral): BoardCard {
+  return {
+    id: row.id,
+    clientName: row.client_name,
+    location: row.location,
+    side: row.side,
+    status: row.status,
+    receivingAgent: row.receiving_agent,
+    blyAgent: row.fub_owner,
+    emailCount: row.email_count,
+    lastEmailAt: row.last_email_at,
+    lastTouchAt: row.last_touch_at,
+    nextTouchOn: row.next_touch_on,
+    updatedAt: row.updated_at,
+  };
+}
+
+function BoardScreen(props: { href: (hash: string) => string; detailId: string | null; creating: boolean }) {
+  const { href, detailId, creating } = props;
   const [rows, setRows] = useState<Referral[] | null>(null);
   const [err, setErr] = useState("");
   const [moved, setMoved] = useState(0);
-  const [filter, setFilter] = useState<Status | null>(null);
+  const [moveError, setMoveError] = useState("");
+  const hrefRef = useRef(href);
+  hrefRef.current = href;
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
 
   useEffect(() => {
     let cancel = false;
@@ -251,49 +274,71 @@ function Board() {
     return () => { cancel = true; };
   }, []);
 
-  if (err) return <p className="rh-error" role="alert">{err}</p>;
-  if (!rows) return <div className="center"><div className="spinner" /></div>;
-  const due = rows.filter((r) => isTouchDue(r.next_touch_on, r.status)).length;
-  const visible = filter ? STATUSES.filter((status) => status === filter) : STATUSES;
+  const onRecord = useCallback((row: Referral) => {
+    setRows((list) => {
+      if (!list) return list;
+      const index = list.findIndex((item) => item.id === row.id);
+      if (index < 0) return [row, ...list];
+      const next = list.slice();
+      next[index] = row;
+      return next;
+    });
+  }, []);
+
+  const onMove = useCallback(async (id: string, stage: Stage) => {
+    const current = rowsRef.current?.find((item) => item.id === id);
+    if (!current) return;
+    const status = statusForStageMove(current.status, stage);
+    if (status === current.status) return;
+    setMoveError("");
+    setRows((list) => list ? list.map((item) => item.id === id ? { ...item, status } : item) : list);
+    try {
+      const updated = await updateReferral(id, { status });
+      setRows((list) => list ? list.map((item) => item.id === id ? updated : item) : list);
+    } catch (e) {
+      setRows((list) => list ? list.map((item) => item.id === id ? current : item) : list);
+      setMoveError(humanError(e));
+    }
+  }, []);
+
+  const close = useCallback(() => {
+    window.location.hash = hrefRef.current("#/referrals/board");
+  }, []);
+  const open = useCallback((id: string) => {
+    window.location.hash = hrefRef.current(`#/referrals/${id}`);
+  }, []);
+
+  if (err && !rows) return <p className="rh-error" role="alert">{err}</p>;
+  const openRow = detailId ? rows?.find((row) => row.id === detailId) : undefined;
   return (
-    <div className="stack">
-      <p className="caption">New → shortlist → awaiting pick → sent → connected → monthly check → closed. Nurture is the quiet pile. After the handoff email, the next touch is 14 days out. Monthly check moves that to every 30 days. Opening this board files anyone untouched for six months into Nurture.</p>
-      {moved > 0 ? <p className="rh-note">{moved === 1 ? "1 referral moved to nurture" : `${moved} referrals moved to nurture`} after six months without a touch.</p> : null}
-      {due > 0 ? <p className="rh-note">{due === 1 ? "1 referral is due" : `${due} referrals are due`} for a touch.</p> : null}
-      <ReminderPreview />
-      {rows.length === 0 ? <p className="summary">No referrals yet. Create the first one.</p> : null}
-      <div className="rh-filters" role="group" aria-label="Filter the board by status">
-        <button type="button" className={filter === null ? "on" : ""} aria-pressed={filter === null} onClick={() => setFilter((current) => toggleStatusFilter(current, "all"))}>All <span>{rows.length}</span></button>
-        {STATUSES.map((status) => {
-          const count = rows.filter((r) => r.status === status).length;
-          const on = filter === status;
-          return (
-            <button key={status} type="button" className={on ? "on" : ""} aria-pressed={on} onClick={() => setFilter((current) => toggleStatusFilter(current, status))}>
-              {statusLabel(status)} <span>{count}</span>
-            </button>
-          );
-        })}
-      </div>
-      {filter ? <p className="rh-note" role="status">Showing {statusLabel(filter)}. Select it again, or All, to show every status.</p> : null}
-      <div className="rh-board">
-        {visible.map((status) => {
-          const cards = rows.filter((r) => r.status === status);
-          return (
-            <section key={status} className="rh-col" aria-label={statusLabel(status)}>
-              <h2 className="serif">{statusLabel(status)} <span>{cards.length}</span></h2>
-              {cards.length === 0 ? <p className="rh-empty">None</p> : cards.map((r) => (
-                <a key={r.id} className={"rh-card" + (isTouchDue(r.next_touch_on, r.status) ? " due" : "")} href={href(`#/referrals/${r.id}`)}>
-                  <span className="rh-name">{r.client_name}</span>
-                  <span className="rh-meta">{[r.side ? sideLabel(r.side) : "", r.location || ""].filter(Boolean).join(" · ") || "No location yet"}</span>
-                  <span className="rh-meta">Emails {r.email_count}{r.last_email_at ? ` · last ${formatWhen(r.last_email_at)}` : ""}</span>
-                  {r.next_touch_on && (status === "sent" || status === "connected" || status === "monthly_check") ? <span className="rh-meta">{isTouchDue(r.next_touch_on, r.status) ? <span className="rh-pill">Due </span> : null}Next {formatDay(r.next_touch_on)} · {r.cadence}</span> : null}
-                </a>
-              ))}
-            </section>
-          );
-        })}
-      </div>
-    </div>
+    <>
+      {rows ? (
+        <BoardView
+          rows={rows.map(toBoardCard)}
+          addHref={href("#/referrals/new")}
+          nurtureMoved={moved}
+          alert={moveError}
+          onOpen={open}
+          onMove={(id, stage) => { void onMove(id, stage); }}
+          extras={(
+            <details className="rb-extra">
+              <summary>Follow-up reminders</summary>
+              <ReminderPreview />
+            </details>
+          )}
+        />
+      ) : <div className="center"><div className="spinner" /></div>}
+      {creating ? (
+        <ReferralDrawer title="New referral" onClose={close}>
+          <NewReferral heading={false} />
+        </ReferralDrawer>
+      ) : null}
+      {detailId ? (
+        <ReferralDrawer title={openRow?.client_name || "Referral"} onClose={close}>
+          <Detail key={detailId} id={detailId} boardStatus={openRow?.status} onRecord={onRecord} />
+        </ReferralDrawer>
+      ) : null}
+    </>
   );
 }
 
@@ -312,7 +357,7 @@ function eventText(ev: ReferralEvent): string {
   return ev.kind;
 }
 
-function Detail({ id }: { id: string }) {
+function Detail({ id, boardStatus, onRecord }: { id: string; boardStatus?: Status; onRecord?: (row: Referral) => void }) {
   const { list } = useAgent();
   const [row, setRow] = useState<Referral | null>(null);
   const [events, setEvents] = useState<ReferralEvent[]>([]);
@@ -329,6 +374,14 @@ function Detail({ id }: { id: string }) {
   const statusRef = useRef<Status>("new");
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const onRecordRef = useRef(onRecord);
+  onRecordRef.current = onRecord;
+  const publishRef = useRef<(row: Referral) => void>(() => {});
+  publishRef.current = (next) => {
+    statusRef.current = next.status;
+    setRow(next);
+    onRecordRef.current?.(next);
+  };
 
   useEffect(() => {
     let cancel = false;
@@ -337,8 +390,7 @@ function Detail({ id }: { id: string }) {
         const [found, hist] = await Promise.all([getReferral(id), listEvents(id)]);
         if (cancel) return;
         if (!found) { setMissing(true); return; }
-        setRow(found);
-        statusRef.current = found.status;
+        publishRef.current(found);
         setDraft(draftFrom(found));
         setReceivingOpen(!(found.receiving_agent?.trim() || found.receiving_agent_email?.trim()));
         setEvents(hist);
@@ -348,6 +400,23 @@ function Detail({ id }: { id: string }) {
     })();
     return () => { cancel = true; };
   }, [id]);
+
+  const externalStatus = useRef(boardStatus);
+  useEffect(() => {
+    if (!boardStatus) return;
+    if (boardStatus === externalStatus.current || boardStatus === statusRef.current) {
+      externalStatus.current = boardStatus;
+      return;
+    }
+    externalStatus.current = boardStatus;
+    let cancel = false;
+    getReferral(id).then((found) => {
+      if (cancel || !found) return;
+      publishRef.current(found);
+      setDraft(draftFrom(found));
+    }).catch(() => { /* the board already shows the stage */ });
+    return () => { cancel = true; };
+  }, [boardStatus, id]);
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -365,7 +434,7 @@ function Detail({ id }: { id: string }) {
       if (!next) return;
       const updated = await updateReferral(id, { status: next });
       statusRef.current = updated.status;
-      setRow(updated);
+      publishRef.current(updated);
       setEvents(await listEvents(id));
     });
   };
@@ -399,7 +468,7 @@ function Detail({ id }: { id: string }) {
       statusRef.current = next.status;
       const saved = draftFrom(next);
       draftRef.current = saved;
-      setRow(next);
+      publishRef.current(next);
       setDraft(saved);
       setEvents(await listEvents(id));
       setReceivingOpen(false);
@@ -425,7 +494,7 @@ function Detail({ id }: { id: string }) {
     try {
       const next = await updateReferral(id, toWrite({ ...draft, ...fubFields(draft.fub_url || draft.fub_person_id) }, true));
       statusRef.current = next.status;
-      setRow(next);
+      publishRef.current(next);
       setDraft(draftFrom(next));
       setEvents(await listEvents(id));
       setNote("Saved.");
@@ -441,7 +510,7 @@ function Detail({ id }: { id: string }) {
     try {
       const next = await updateReferral(id, { status });
       statusRef.current = next.status;
-      setRow(next);
+      publishRef.current(next);
       setEvents(await listEvents(id));
       setNote(`Status is ${statusLabel(next.status)}. Next touch ${formatDay(next.next_touch_on)} (${next.cadence}).`);
     } catch (e) {
@@ -457,7 +526,7 @@ function Detail({ id }: { id: string }) {
     try {
       const { referral: next, fubMessage } = await confirmHandoffSent({ id, agent: draft.receiving_agent.trim(), email: draft.receiving_agent_email.trim(), isa: draft.isa_email.trim(), shortlist: draft.shortlist });
       statusRef.current = next.status;
-      setRow(next);
+      publishRef.current(next);
       setDraft(draftFrom(next));
       setEvents(await listEvents(id));
       setFubMsg(fubMessage);
@@ -476,7 +545,7 @@ function Detail({ id }: { id: string }) {
       const [next, hist] = await Promise.all([getReferral(id), listEvents(id)]);
       if (next) {
         statusRef.current = next.status;
-        setRow(next);
+        publishRef.current(next);
         setDraft(draftFrom(next));
       }
       setEvents(hist);
@@ -656,7 +725,7 @@ function Detail({ id }: { id: string }) {
             statusRef.current = next.status;
             const saved = draftFrom(next);
             draftRef.current = saved;
-            setRow(next);
+            publishRef.current(next);
             setDraft(saved);
           }}
           onDraftRecorded={async (webLink) => {
@@ -664,7 +733,7 @@ function Detail({ id }: { id: string }) {
             statusRef.current = next.status;
             const saved = draftFrom(next);
             draftRef.current = saved;
-            setRow(next);
+            publishRef.current(next);
             setDraft(saved);
             setEvents(await listEvents(id));
           }}
@@ -689,22 +758,17 @@ export default function Referrals() {
   const { href } = useAgent();
   const head = useReferralHead();
   const detailId = isUuid(head) ? head : null;
-  const onBoard = head === "board";
-  return (
-    <div className="page-body referrals">
-      <div className="rh-top">
-        <div>
-          <h1 className="page-title serif">Referral Hub</h1>
-          <p className="summary">Out-of-area referrals for The Bly Team. Create a record, pick an agent from the profiles near the location, then hand it off as an Outlook draft with the filled referral form attached.</p>
-        </div>
-      </div>
-      <nav className="rh-tabs" aria-label="Referral Hub">
-        <a href={href("#/referrals/board")} className={onBoard ? "on" : ""} aria-current={onBoard ? "page" : undefined}>Board</a>
-        <a href={href("#/referrals/new")} className={head === "new" ? "on" : ""} aria-current={head === "new" ? "page" : undefined}>New referral</a>
-      </nav>
-      {head === "new" ? <NewReferral /> : detailId ? <Detail key={detailId} id={detailId} /> : head === "board" ? <Board /> : (
+  const creating = head === "new";
+  if (head !== "board" && !creating && !detailId) {
+    return (
+      <div className="page-body referrals">
         <p className="rh-error">That referral link is not recognized. <a href={href("#/referrals/board")}>Back to the board</a>.</p>
-      )}
+      </div>
+    );
+  }
+  return (
+    <div className="referrals rb">
+      <BoardScreen href={href} detailId={detailId} creating={creating} />
     </div>
   );
 }
