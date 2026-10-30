@@ -22,7 +22,7 @@ const Depth = createContext(0);
 const cellText = (c: any): string => (c == null ? "" : typeof c === "string" || typeof c === "number" ? String(c) : typeof c === "object" && "text" in c ? String(c.text) : "");
 const cellNum = (c: any): number | null => {
   const t = cellText(c).trim().replace(/[$,%\s]/g, "").split("(")[0];
-  const m = /^(-?\d+(?:\.\d+)?)([KM]?)/.exec(t);
+  const m = /^([+-]?\d+(?:\.\d+)?)([KM]?)/.exec(t);
   return m ? parseFloat(m[1]) * (m[2] === "M" ? 1e6 : m[2] === "K" ? 1e3 : 1) : null;
 };
 
@@ -61,43 +61,118 @@ export function Toggle(p: { label?: string; value: boolean; onChange: (v: boolea
 }
 
 // Totals row (Kevin 2026-10-30): every table shows column totals at the top. Rate/average/date columns
-// (%, per-unit, median, avg, speed, rank, date) are not additive, so they show a dash instead of a sum.
-const NON_ADDITIVE = /%|\/|per |avg|average|median|mean|rate|speed|rank|#|score|date|year|time|age|days|min\b|conv|ratio/i;
-export function columnTotals(columns: string[], rows: any[][]): (string | null)[] {
+// (%, per-unit, median, avg, speed, rank, date) are not additive, so they show a dash instead of a sum,
+// unless the table declares the column's parts via `ratios` (then total = sum(numerator) / sum(denominator),
+// the same rule the Zillow boards use in zillowTable.tsx).
+const NON_ADDITIVE = /%|\S\/\S|\bper\b|\bavg\b|average|median|\bmean\b|\brate\b|speed|\brank|#|score|date|\byear\b|\btime\b|\bage\b|\bdays?\b|\bhours?\b|waiting|\bmin\b|\bconv\b|conversion|ratio/i;
+// Period phrases like "last 30 days" / "all time" / "in period" name the window, not the measure.
+const PERIOD_WORDS = /\b(last|past|next)\s+\d+\s+(days?|months?|weeks?|years?)\b|\ball[- ]time\b|\bin period\b|\bthis year\b|\b20\d\d\b/gi;
+const isBlank = (c: any) => { const t = cellText(c).trim(); return t === "" || t === "—" || t === "-" || /^n\/?a$/i.test(t) || /^—\s*\/\s*—$/.test(t); };
+const DATE_RE = /^(\d{4}-\d{2}(-\d{2})?|\d{1,2}\/\d{1,2}(\/\d{2,4})?)([ T]\d{1,2}:\d{2}(:\d{2})?(\s?[AP]M)?)?$/i;
+const isDate = (c: any) => DATE_RE.test(cellText(c).trim());
+const pnum = (x: string) => (x === "—" ? 0 : parseFloat(x.replace(/,/g, "")) || 0);
+const PAIR_RE = /^\s*(-?[\d,.]+|—)\s*\/\s*(-?[\d,.]+|—)\s*$/; // "applied / hired" style cells; a dash side counts as 0
+/** Sort key: explicit `sort`, else dates as yyyymmdd(hhmm), else numbers, else lowercase text; null = blank (always last). */
+export function sortValue(c: any): number | string | null {
+  if (c && typeof c === "object" && "sort" in c && c.sort !== undefined) return c.sort;
+  if (isBlank(c)) return null;
+  const t = cellText(c).trim();
+  let m = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[ T](\d{1,2}):(\d{2}))?/.exec(t);
+  if (m && DATE_RE.test(t)) return +m[1] * 1e8 + +m[2] * 1e6 + +(m[3] || 0) * 1e4 + +(m[4] || 0) * 100 + +(m[5] || 0);
+  m = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?:[ T](\d{1,2}):(\d{2})(?::\d{2})?\s?([AP]M)?)?$/i.exec(t);
+  if (m) { const y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : 0; let h = +(m[4] || 0); if (m[6]) h = (h % 12) + (/p/i.test(m[6]) ? 12 : 0);
+    return y * 1e8 + +m[1] * 1e6 + +m[2] * 1e4 + h * 100 + +(m[5] || 0); }
+  const n = cellNum(c);
+  return n != null ? n : t.toLowerCase();
+}
+function fmtLike(sum: number, sample: string, cells: any[]): string {
+  const money = sample.startsWith("$") || sample.startsWith("-$");
+  const short = /\d[KM]\b/.test(sample);
+  if (short) return (sum < 0 ? "-" : "") + (money ? "$" : "") + (Math.abs(sum) >= 1e6 ? (Math.abs(sum) / 1e6).toFixed(2) + "M" : (Math.abs(sum) / 1e3).toFixed(1) + "K");
+  let dec = Math.min(2, Math.max(0, ...cells.map((c) => (/\.(\d+)/.exec(cellText(c).replace(/[^\d.]/g, "")) || ["", ""])[1].length)));
+  if (!money && Math.abs(sum - Math.round(sum)) < 1e-9) dec = 0; // split units like 0.5 can still add up to a whole number
+  const v = Math.abs(sum).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  return (sum < 0 ? "-" : "") + (money ? "$" : "") + v;
+}
+export type Ratios = Record<string, [string | string[], string]>;
+export function columnTotals(columns: string[], rows: any[][], ratios?: Ratios): (string | null)[] {
+  const sumOf = (k: number) => { let s = 0, any = false; for (const r of rows) { const n = cellNum(r[k]); if (n != null) { s += n; any = true; } } return any ? s : null; };
   return columns.map((h, k) => {
     if (k === 0) return "Total";
     const cells = rows.map((r) => r[k]);
+    const filled = cells.filter((c) => !isBlank(c));
+    const sample = cellText(filled.find((c) => cellNum(c) != null)).trim();
+    const rq = ratios?.[h];
+    if (rq) {
+      const parts = (Array.isArray(rq[0]) ? rq[0] : [rq[0]]).map((l) => { const a = columns.indexOf(l); return a >= 0 ? sumOf(a) : null; });
+      const b = columns.indexOf(rq[1]);
+      const n = parts.some((x) => x == null) ? null : (parts as number[]).reduce((x, y) => x + y, 0), d = b >= 0 ? sumOf(b) : null;
+      if (n == null || d == null || !d) return "—";
+      if (/%/.test(sample) || !sample) { const dec = Math.max(0, ...filled.map((c) => (/\.(\d+)%/.exec(cellText(c)) || ["", ""])[1].length)); return ((100 * n) / d).toFixed(Math.min(dec, 2)) + "%"; }
+      return fmtLike(n / d, sample, filled);
+    }
+    if (!filled.length) return null;
+    if (filled.some(isDate)) return "—";
+    const nonAdd = NON_ADDITIVE.test(h.replace(PERIOD_WORDS, " "));
+    if (filled.every((c) => PAIR_RE.test(cellText(c)))) {
+      if (nonAdd) return "—";
+      const sa = filled.reduce((s, c) => s + pnum(PAIR_RE.exec(cellText(c))![1]), 0);
+      const sb = filled.reduce((s, c) => s + pnum(PAIR_RE.exec(cellText(c))![2]), 0);
+      return sa.toLocaleString("en-US") + " / " + sb.toLocaleString("en-US");
+    }
     const nums = cells.map(cellNum).filter((x): x is number => x != null);
-    if (!nums.length || nums.length < cells.filter((c) => cellText(c).trim() !== "" && cellText(c).trim() !== "—").length) return null;
-    const sample = cellText(cells.find((c) => cellNum(c) != null)).trim();
-    if (NON_ADDITIVE.test(h) || /%/.test(sample)) return "—";
-    const sum = nums.reduce((a, b) => a + b, 0);
-    const money = sample.startsWith("$") || sample.startsWith("-$");
-    const short = /\d[KM]\b/.test(sample);
-    if (short) return (money ? "$" : "") + (Math.abs(sum) >= 1e6 ? (sum / 1e6).toFixed(2) + "M" : (sum / 1e3).toFixed(1) + "K");
-    const dec = Math.max(0, ...cells.map((c) => (/\.(\d+)/.exec(cellText(c).replace(/[^\d.]/g, "")) || ["", ""])[1].length));
-    const v = sum.toLocaleString("en-US", { minimumFractionDigits: Math.min(dec, 2), maximumFractionDigits: Math.min(dec, 2) });
-    return money ? (sum < 0 ? "-$" + v.replace("-", "") : "$" + v) : v;
+    if (!nums.length) return null;
+    if (nonAdd || /%/.test(sample)) return "—";
+    if (nums.length < filled.length) return null;
+    return fmtLike(nums.reduce((a, b) => a + b, 0), sample, filled);
   });
 }
-export function Table(p: { columns: string[]; rows: any[][]; align?: string[]; noTotals?: boolean }) {
+/** Sort state for any table (Kevin 2026-10-30): header click cycles descending → ascending → off; numbers and dates
+ *  compare numerically, text A–Z, blanks always last, ties keep the original order. `order` is row indexes. */
+export function useSorted<R>(rows: R[], key: (r: R, col: number) => any) {
   const [sort, setSort] = useState<[number, number]>([-1, 1]);
-  const rows = useMemo(() => {
-    if (sort[0] < 0) return p.rows;
+  const order = useMemo(() => {
+    const ix = rows.map((_, i) => i);
+    if (sort[0] < 0) return ix;
     const c = sort[0], s = sort[1];
-    return [...p.rows].sort((a, b) => { const x = cellNum(a[c]), y = cellNum(b[c]);
-      if (x != null && y != null) return (x - y) * s; if (x != null) return -1; if (y != null) return 1;
-      return cellText(a[c]).localeCompare(cellText(b[c])) * s; });
-  }, [p.rows, sort]);
-  const tot = useMemo(() => columnTotals(p.columns, p.rows), [p.columns, p.rows]);
-  const al = (k: number) => (p.align && p.align[k] === "end") || (!p.align && k > 0 && p.rows.length && cellNum(p.rows[0][k]) != null) ? "num" : "";
-  return (<div className="tablewrap"><table>
-    <thead><tr>{p.columns.map((c, k) => <th key={k} className={al(k)} onClick={() => setSort(sort[0] === k ? (sort[1] === -1 ? [k, 1] : [-1, 1]) : [k, -1])} title="Sort">
-      {c}<span className="sorti">{sort[0] === k ? (sort[1] === -1 ? " ▼" : " ▲") : " ↕"}</span></th>)}</tr>
-      {!p.noTotals && p.rows.length > 1 && tot.some((t, k) => k > 0 && t && t !== "—") ? <tr className="totrow">{tot.map((t, k) => <td key={k} className={al(k)}>{t ?? ""}</td>)}</tr> : null}</thead>
-    <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c: any, k: number) => <td key={k} className={al(k)} style={{ color: c && typeof c === "object" && "tone" in c ? toneColor(c.tone) : undefined }}>
-      {c && typeof c === "object" && "text" in c && !("$$typeof" in c) ? c.text : c}</td>)}</tr>)}</tbody>
-  </table></div>);
+    const keys = rows.map((r) => sortValue(key(r, c)));
+    return ix.sort((a, b) => { const x = keys[a], y = keys[b];
+      if (x == null || y == null) return x == null && y == null ? a - b : x == null ? 1 : -1;
+      if (typeof x === "number" && typeof y === "number") return (x - y) * s || a - b;
+      if (typeof x === "number") return -1; if (typeof y === "number") return 1;
+      return String(x).localeCompare(String(y), "en-US") * s || a - b; });
+  }, [rows, sort]);
+  const head = (k: number) => ({ onClick: () => setSort(sort[0] === k ? (sort[1] === -1 ? [k, 1] : [-1, 1]) : [k, -1]), title: "Sort",
+    "aria-sort": (sort[0] === k ? (sort[1] === -1 ? "descending" : "ascending") : "none") as "descending" | "ascending" | "none" });
+  const mark = (k: number) => <span className="sorti">{sort[0] === k ? (sort[1] === -1 ? " ▼" : " ▲") : " ↕"}</span>;
+  return { order, head, mark };
+}
+/** A table cell: plain text/number, a React node, or { text, node?, sort?, tone?, className?, style? }.
+ *  `text` drives sorting and totals; `node` (links, pills, tags) is what renders. */
+const cellNode = (c: any) => (c && typeof c === "object" && !("$$typeof" in c) ? ("node" in c ? c.node : "text" in c ? c.text : null) : c);
+export type ColSpec = string | { label: string; head?: ReactNode; className?: string };
+/** Shared sortable table with a totals row at the top (Kevin 2026-10-30). Headers toggle descending → ascending → off;
+ *  numbers/dates sort numerically, text A–Z, blanks last. `noTotals` for key/value lists, overlapping rows, or tables that
+ *  already carry a total row; `ratios` declares percent / per-unit columns whose total is a ratio of two summed columns. */
+export function Table(p: { columns: ColSpec[]; rows: any[][]; align?: string[]; noTotals?: boolean; ratios?: Ratios;
+  className?: string; wrapClass?: string; tdClass?: string[]; rowClass?: (row: any[], i: number) => string | undefined; sortCols?: boolean[];
+  /** Rows counted in the totals row (default all), e.g. to leave the AI dialer out of human totals. */ inTotal?: (row: any[], i: number) => boolean; totalLabel?: string }) {
+  const labels = p.columns.map((c) => (typeof c === "string" ? c : c.label));
+  const { order: idx, head, mark } = useSorted(p.rows, (r, k) => r[k]);
+  const totRows = p.inTotal ? p.rows.filter(p.inTotal) : p.rows;
+  const tot = useMemo(() => { const t = columnTotals(labels, totRows, p.ratios); if (p.totalLabel) t[0] = p.totalLabel; return t; }, [labels.join("\u0001"), p.rows, p.ratios, p.inTotal, p.totalLabel]);
+  const al = (k: number) => p.tdClass ? p.tdClass[k] || "" : (p.align && p.align[k] === "end") || (!p.align && k > 0 && p.rows.length && cellNum(p.rows[0][k]) != null) ? "num" : "";
+  const thCls = (k: number) => { const c = p.columns[k]; return [al(k), typeof c === "string" ? "" : c.className || ""].filter(Boolean).join(" ") || undefined; };
+  const showTot = !p.noTotals && totRows.length > 1 && tot.some((t, k) => k > 0 && t && t !== "—");
+  const table = (<table className={p.className}>
+    <thead><tr>{p.columns.map((c, k) => (p.sortCols && p.sortCols[k] === false)
+      ? <th key={k} className={thCls(k)}>{typeof c === "string" ? c : c.head ?? c.label}</th>
+      : <th key={k} className={thCls(k)} {...head(k)}>{typeof c === "string" ? c : c.head ?? c.label}{mark(k)}</th>)}</tr>
+      {showTot ? <tr className="totrow">{tot.map((t, k) => <td key={k} className={al(k) || undefined}>{t ?? ""}</td>)}</tr> : null}</thead>
+    <tbody>{idx.map((i) => { const r = p.rows[i]; return <tr key={i} className={p.rowClass?.(r, i)}>{r.map((c: any, k: number) => { const o = c && typeof c === "object" && !("$$typeof" in c) ? c : null;
+      return <td key={k} className={[al(k), o?.className].filter(Boolean).join(" ") || undefined} style={o ? { color: "tone" in o ? toneColor(o.tone) : undefined, ...o.style } : undefined}>{cellNode(c)}</td>; })}</tr>; })}</tbody>
+  </table>);
+  return p.wrapClass === "" ? table : <div className={p.wrapClass || "tablewrap"}>{table}</div>;
 }
 export function Rows(p: { rows: { title: string; detail?: string }[] }) {
   return <div className="rows">{p.rows.map((r, i) => <div key={i} className="row"><div className="rtitle">{r.title}</div>{r.detail ? <div className="rdetail">{r.detail}</div> : null}</div>)}</div>;

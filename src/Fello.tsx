@@ -1,6 +1,8 @@
 // Fello (Felix AI) tab. Sources: Fello Manager's fello.json (UI-read totals), FUB Manager ai_handoff.json, tracker (Sisu contract/closing). Totals only; "—" when missing.
 import { useAgent, pickAgent, AgentBanner } from "./agent";
 import "./fubaudit.css";
+import { Table } from "./kit";
+const R6 = ["", "r", "r", "r", "r", "r"], R10 = ["", "r", "r", "r", "r", "r", "r", "r", "r", "r"];
 
 const ok = (v: any) => typeof v === "number" && isFinite(v);
 const num = (v: any) => (ok(v) ? v.toLocaleString("en-US") : "—");
@@ -68,9 +70,9 @@ export default function Fello({ data }: { data?: any }) {
         <Card l="Handoffs YTD" v={num(U.handoffs)} h={`Call ${num(U.call)} · Text ${num(U.text)}`} /><Card l="Median wait for a human call" v={mins(U.median_min)} h="After handoff, YTD" />
         <Card l="Human call within 1 hour" v={pc(U.pct_1h)} h="Share of handoffs" /><Card l="Handoffs never called" v={num(U.never_called)} h="No human call yet, YTD (FUB)" /><Card l={`Closed ${data.year ?? ""}`} v={num(S.closed)} h={`${usd(S.closed_gci)} GCI · ${num(S.under_contract)} under contract (Sisu)`} /></div>
       <section className="section"><h2 className="serif">Felix by period</h2>
-        <div className="tablewrap"><table><thead><tr><th>Period</th><th className="r">AI calls</th><th className="r">AI texts</th><th className="r">Handoffs</th><th className="r">Call response</th><th className="r">Text response</th></tr></thead>
-          <tbody>{PER.map(([k, l]) => { const p = (F.periods ?? {})[k] ?? {}; return <tr key={k}><td>{l}</td><td className="r">{num(p.calls)}</td><td className="r">{num(p.sms)}</td><td className="r">{num(p.handoffs)}</td>
-            <td className="r">{pc(p.call_resp_pct)}{ok(p.call_resp_n) ? ` · ${num(p.call_resp_n)}` : ""}</td><td className="r">{pc(p.sms_resp_pct)}{ok(p.sms_resp_n) ? ` · ${num(p.sms_resp_n)}` : ""}</td></tr>; })}</tbody></table></div>
+        <Table noTotals columns={["Period", "AI calls", "AI texts", "Handoffs", "Call response", "Text response"]} tdClass={R6}
+          rows={PER.map(([k, l]) => { const p = (F.periods ?? {})[k] ?? {}; return [l, num(p.calls), num(p.sms), num(p.handoffs),
+            pc(p.call_resp_pct) + (ok(p.call_resp_n) ? ` · ${num(p.call_resp_n)}` : ""), pc(p.sms_resp_pct) + (ok(p.sms_resp_n) ? ` · ${num(p.sms_resp_n)}` : "")]; })} />
         <p className="caption">Fello Reports, read from the Fello UI. Response = rate · leads responding.</p></section>
       <section className="section"><h2 className="serif">Monthly calls, texts and handoffs</h2><MonthlyBars rows={M} /></section>
       <section className="section"><h2 className="serif">Nurture and Living Database, last 30 days</h2>
@@ -88,9 +90,9 @@ export default function Fello({ data }: { data?: any }) {
       <section className="section"><h2 className="serif">Median wait for a human call after a handoff</h2><WaitTrend rows={M} />
         <p className="caption">Minutes from FUB "Felix AI Handoff" to the first human call, by month. Gold line = 1 hour.</p></section>
       <section className="section"><h2 className="serif">Monthly</h2>
-        <div className="tablewrap"><table><thead><tr><th>Month</th><th className="r">AI calls</th><th className="r">AI texts</th><th className="r">Handoffs</th><th className="r">Call / text</th><th className="r">Human called</th><th className="r">Median wait</th><th className="r">≤1 h</th><th className="r">Appt</th><th className="r">FUB deals created (any stage)</th></tr></thead>
-          <tbody>{M.map((m) => <tr key={m.month}><td>{mlab(m.month)} {m.month.slice(0, 4)}{m.partial ? " (to date)" : ""}</td><td className="r">{num(m.calls)}</td><td className="r">{num(m.sms)}</td><td className="r">{num(m.fub_handoffs)}</td>
-            <td className="r">{num(m.call)} / {num(m.text)}</td><td className="r">{num(m.human_called)}</td><td className="r">{mins(m.median_min)}</td><td className="r">{pc(m.pct_1h)}</td><td className="r">{num(m.appts)}</td><td className="r">{num(m.deals)}</td></tr>)}</tbody></table></div>
+        <Table columns={["Month", "AI calls", "AI texts", "Handoffs", "Call / text", "Human called", "Median wait", "≤1 h", "Appt", "FUB deals created (any stage)"]} tdClass={R10}
+          rows={M.map((m) => [{ text: `${mlab(m.month)} ${m.month.slice(0, 4)}${m.partial ? " (to date)" : ""}`, sort: m.month }, num(m.calls), num(m.sms), num(m.fub_handoffs),
+            `${num(m.call)} / ${num(m.text)}`, num(m.human_called), mins(m.median_min), pc(m.pct_1h), num(m.appts), num(m.deals)])} />
         <p className="caption">Calls and texts: Fello. Handoffs and later steps: FUB. {F.reconciliation_note ?? ""}</p></section>
       <section className="section"><h2 className="serif">Data notes</h2><ul className="fl-notes">
         <li>Felix figures: {F.source ?? "—"}, as of {asof(F.as_of)}. Fello's public API has no activity endpoints, so numbers are read from the Fello UI.</li>

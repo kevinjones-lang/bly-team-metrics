@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import "./mainscreen.css";
 import { usePersist } from "./agent";
+import { Table } from "./kit";
 
 const C = { charcoal: "#12151C", ink: "#1A1A1A", ivory: "#F3F1EB", blue: "#00519B", gold: "#C0A062", grey: "#8C8A84", line: "#D6D0C2" };
 const MN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -225,12 +226,13 @@ function Ceo({ d, v, lrOn }: { d: any; v: string; lrOn: boolean }) {
   </div>);
 }
 
+// Plain = small property block (Units / Volume / GCI rows): no sort, no totals. Otherwise the shared kit Table
+// (sort on every header, totals row on top; Kevin 2026-10-30). Month rows sort in calendar order.
 function SortTable({ cols, rows, plain }: { cols: string[]; rows: string[][]; plain?: boolean }) {
-  const [sk, setSk] = useState<number>(-1); const [dir, setDir] = useState(1);
-  const num = (s: string) => { const x = parseFloat(String(s).replace(/[$,]/g, "")); return Number.isNaN(x) ? -Infinity : x; };
-  const rs = sk < 0 ? rows : [...rows].sort((a, b) => (sk === 0 && !plain ? 0 : (num(a[sk]) - num(b[sk])) * dir));
-  return (<div className="mx-tw"><table className="mx-t"><thead><tr>{cols.map((c, i) => <th key={c + i}>{plain || i === 0 ? c : <button onClick={() => { if (sk === i) setDir(-dir); else { setSk(i); setDir(-1); } }}>{c}{sk === i ? (dir < 0 ? " ▼" : " ▲") : ""}</button>}</th>)}</tr></thead>
-    <tbody>{rs.map((r, j) => <tr key={j}>{r.map((c, i) => <td key={i}>{c}</td>)}</tr>)}</tbody></table></div>);
+  if (plain) return (<div className="mx-tw"><table className="mx-t"><thead><tr>{cols.map((c, i) => <th key={c + i}>{c}</th>)}</tr></thead>
+    <tbody>{rows.map((r, j) => <tr key={j}>{r.map((c, i) => <td key={i}>{c}</td>)}</tr>)}</tbody></table></div>);
+  return <Table className="mx-t" wrapClass="mx-tw" columns={cols} tdClass={cols.map(() => "")}
+    rows={rows.map((r) => r.map((c, i) => (i === 0 && MN.includes(c) ? { text: c, sort: MN.indexOf(c) } : c)))} />;
 }
 
 /* ---------------- 2027 goal banner (Pacing + CEO) ---------------- */

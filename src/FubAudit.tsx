@@ -1,11 +1,17 @@
 import { useMemo, useState } from "react";
 import "./fubaudit.css";
+import { Table } from "./kit";
 import { AgentBanner, TeamOnly, pickAgent, sameAgent, usePersist } from "./agent";
 export { num, mins };
 
 const AI = "Jesse Jones";
 const num = (v: any) => (v === null || v === undefined || v === "" || (typeof v === "number" && (v < 0 || !isFinite(v))) ? "—" : typeof v === "number" ? v.toLocaleString("en-US") : String(v));
 const mins = (v: any) => (typeof v !== "number" || v < 0 ? "—" : v < 60 ? `${v.toFixed(1)} min` : v < 600 ? `${v.toFixed(1)} min` : `${(v / 60).toFixed(1)} h`);
+const minSort = (v: any) => (typeof v === "number" && v >= 0 ? v : null);
+// Scorecard cell for the shared kit Table: text drives sort/totals, raw numbers sort numerically, name keeps the AI tag.
+const colCell = (c: Col, r: any) => { const v = r[c.k]; const text = c.f ? c.f(v) : num(v);
+  if (c.k === "name") return r.isAI ? { text: r.name, node: <>{r.name}<span className="fa-tag">Fello AI dialer</span></> } : r.name;
+  return { text, sort: typeof v === "number" ? (isFinite(v) && v >= 0 ? v : null) : undefined }; };
 const T = ({ t }: { t?: string | null }) => (t ? <p className="caption">{t}</p> : null);
 
 type Col = { k: string; l: string; f?: (v: any) => string; n?: boolean };
@@ -20,7 +26,7 @@ const COLS: Col[] = [
 
 export function Overview({ data, agent }: { data?: any; agent?: string | null }) {
   const [q, setQ] = useState(""); const [role, setRole] = usePersist("or", "All"); const [hideAI0, setHideAI0] = usePersist<string>("oh", "0"); const hideAI = hideAI0 === "1"; const setHideAI = (b: boolean) => setHideAI0(b ? "1" : "0");
-  const [sort, setSort] = useState<{ k: string; d: 1 | -1 }>({ k: "people", d: -1 });
+  const sort: { k: string; d: 1 | -1 } = { k: "people", d: -1 }; // starting order; header clicks re-sort in the kit Table
   const s = data?.site ?? {}; const u = data?.uncontacted ?? {}; const stl = s.speedToLead ?? {};
   const rows = useMemo(() => {
     const ext: Record<string, any> = {}; for (const a of data?.agents ?? []) ext[a.agent] = a;
@@ -56,8 +62,8 @@ export function Overview({ data, agent }: { data?: any; agent?: string | null })
           <h3 className="serif">First human call</h3>
           <div className="fa-bars">{(() => { const b = stl.buckets ?? []; const mx = Math.max(1, ...b.map((x: any) => x[1] ?? 0)); return b.map((x: any) => <div className="fa-bar" key={x[0]}><span>{x[0]}</span><i style={{ width: `${(100 * (x[1] ?? 0)) / mx}%` }} /><b>{num(x[1])}</b></div>); })()}</div>
           <h3 className="serif">By source</h3>
-          <table><thead><tr><th>Source</th><th className="r">Leads</th><th className="r">Median first call</th><th className="r">Uncontacted</th></tr></thead>
-            <tbody>{(stl.bySource ?? []).map((r: any) => <tr key={r[0]}><td>{r[0]}</td><td className="r">{num(r[1])}</td><td className="r">{mins(r[2])}</td><td className="r">{num(r[3])}</td></tr>)}</tbody></table>
+          <Table columns={["Source", "Leads", "Median first call", "Uncontacted"]} tdClass={["", "r", "r", "r"]}
+            rows={(stl.bySource ?? []).map((r: any) => [r[0], num(r[1]), { text: mins(r[2]), sort: minSort(r[2]) }, num(r[3])])} wrapClass="" />
           <T t={s.text?.speed} /></section>}
 
         <section className="section"><h2 className="serif">Uncontacted leads</h2>
@@ -76,12 +82,12 @@ export function Overview({ data, agent }: { data?: any; agent?: string | null })
             <tr><td>New leads (30d) with unspecified source</td><td className="r">{num(data.hygiene?.new30_unspecified_source)}</td></tr>
             <tr><td>Active-stage people, no activity 90+ days</td><td className="r">{num(data.hygiene?.act_lastact_gt90)}</td></tr></tbody></table>
           <T t={s.text?.hygiene} />
-          {s.dormant?.length ? <><h3 className="serif">Dormant users</h3><table><thead><tr><th>User</th><th>Last sign-in</th><th className="r">People</th><th className="r">Active</th><th className="r">Open tasks</th></tr></thead>
-            <tbody>{s.dormant.map((d: any) => <tr key={d[0]}><td>{d[0]}</td><td>{d[1]}</td><td className="r">{num(d[2])}</td><td className="r">{num(d[3])}</td><td className="r">{num(d[4])}</td></tr>)}</tbody></table></> : null}</section>
+          {s.dormant?.length ? <><h3 className="serif">Dormant users</h3><Table columns={["User", "Last sign-in", "People", "Active", "Open tasks"]} tdClass={["", "", "r", "r", "r"]} wrapClass=""
+            rows={s.dormant.map((d: any) => [d[0], d[1] ?? "", num(d[2]), num(d[3]), num(d[4])])} /></> : null}</section>
 
         <section className="section"><h2 className="serif">Pipeline staleness</h2><T t={s.text?.staleness} />
-          <div className="tablewrap"><table><thead><tr><th>Stage</th><th className="r">Total</th><th className="r">&lt;7d</th><th className="r">7–30d</th><th className="r">30–90d</th><th className="r">90d+</th><th className="r">Never</th></tr></thead>
-            <tbody>{(s.staleness ?? []).map((r: any) => <tr key={r.stage}><td>{r.stage}</td>{["total", "lt7", "d7_30", "d30_90", "gt90", "never"].map((k) => <td className="r" key={k}>{num(r[k])}</td>)}</tr>)}</tbody></table></div></section>
+          <Table columns={["Stage", "Total", "<7d", "7–30d", "30–90d", "90d+", "Never"]} tdClass={["", "r", "r", "r", "r", "r", "r"]}
+            rows={(s.staleness ?? []).map((r: any) => [r.stage, ...["total", "lt7", "d7_30", "d30_90", "gt90", "never"].map((k) => num(r[k]))])} /></section>
 
         <section className="section"><h2 className="serif">Agent scorecard</h2><T t={s.text?.scorecard2} />
           <div className="fa-filters">
@@ -90,8 +96,8 @@ export function Overview({ data, agent }: { data?: any; agent?: string | null })
             <label><input type="checkbox" checked={hideAI} onChange={(e) => setHideAI(e.target.checked)} /> Hide AI dialer</label>
             <span className="caption">{shown.length} of {rows.length}</span>
           </div>
-          <div className="tablewrap"><table className="fa-agents"><thead><tr>{COLS.map((c) => <th key={c.k} className={(c.n ? "r " : "") + "sortable"} onClick={() => setSort({ k: c.k, d: sort.k === c.k ? (sort.d === 1 ? -1 : 1) : c.n ? -1 : 1 })}>{c.l}{sort.k === c.k ? (sort.d === 1 ? " ▲" : " ▼") : ""}</th>)}</tr></thead>
-            <tbody>{shown.map((r: any) => <tr key={r.name} className={r.isAI ? "ai" : ""}>{COLS.map((c) => <td key={c.k} className={c.n ? "r" : ""}>{c.k === "name" ? <>{r.name}{r.isAI ? <span className="fa-tag">Fello AI dialer</span> : null}</> : c.f ? c.f(r[c.k]) : num(r[c.k])}</td>)}</tr>)}</tbody></table></div>
+          <Table className="fa-agents" columns={COLS.map((c) => c.l)} tdClass={COLS.map((c) => (c.n ? "r" : ""))} rows={shown.map((r: any) => COLS.map((c) => colCell(c, r)))}
+            rowClass={(_, i) => (shown[i].isAI ? "ai" : undefined)} inTotal={(_, i) => !shown[i].isAI} totalLabel={shown.some((r: any) => r.isAI) ? "Total (excl. AI dialer)" : undefined} />
           <T t={s.text?.scorecard1} /></section>
 
         {s.recommendations?.length ? <section className="section"><h2 className="serif">Recommendations</h2><ol className="fa-recs">{s.recommendations.map((r: string) => <li key={r}>{r}</li>)}</ol></section> : null}
@@ -119,8 +125,7 @@ function AgentOverview({ data, agent, rows }: { data: any; agent: string; rows: 
       {!o && !sp && !hy && !rows.length ? <p className="caption">— No FUB numbers for this agent in this snapshot (not a FUB user, or a different FUB name).</p> : null}
       <div className="fa-cards">{cards.map(([l, v, h]) => <div className="fa-card" key={l}><div className="fa-v serif">{typeof v === "string" ? v : num(v)}</div><div className="fa-l">{l}</div>{h ? <div className="fa-h">{h}</div> : null}</div>)}</div>
       {rows.length ? <section className="section"><h2 className="serif">Agent scorecard row</h2>
-        <div className="tablewrap"><table className="fa-agents"><thead><tr>{COLS.map((c) => <th key={c.k} className={c.n ? "r" : ""}>{c.l}</th>)}</tr></thead>
-          <tbody>{rows.map((r: any) => <tr key={r.name}>{COLS.map((c) => <td key={c.k} className={c.n ? "r" : ""}>{c.f ? c.f(r[c.k]) : num(r[c.k])}</td>)}</tr>)}</tbody></table></div></section> : null}
+        <Table className="fa-agents" columns={COLS.map((c) => c.l)} tdClass={COLS.map((c) => (c.n ? "r" : ""))} rows={rows.map((r: any) => COLS.map((c) => colCell(c, r)))} /></section> : null}
       <TeamOnly what="Key findings, data hygiene totals, pipeline staleness by stage and recommendations" />
     </div></div>);
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Overview, num, mins } from "./FubAudit";
 import { useAgent, TeamOnly, AgentBanner, pickAgent, usePersist } from "./agent";
+import { Table, type Ratios } from "./kit";
 
 const AI = "Jesse Jones";
 const pc = (v: any) => (typeof v === "number" && isFinite(v) ? `${v.toFixed(1)}%` : "—");
@@ -12,13 +13,20 @@ const Missing = ({ t }: { t: string }) => <div className="gatecard"><h1 classNam
 const AIRow = () => <span className="fa-tag">Fello AI dialer</span>;
 
 type C = { k: string; l: string; f?: (v: any) => string; n?: boolean };
-function STable({ cols, rows, initial, filter = true, rowClass }: { cols: C[]; rows: any[]; initial?: string; filter?: boolean; rowClass?: (r: any) => string }) {
-  const [q, setQ] = useState(""); const [sort, setSort] = useState<{ k: string; d: number }>({ k: initial ?? cols[0].k, d: initial ? -1 : 1 });
-  const shown = rows.filter((r) => !q || String(r[cols[0].k]).toLowerCase().includes(q.toLowerCase())).sort((a, b) => {
-    const x = a[sort.k], y = b[sort.k]; const nx = x == null, ny = y == null; if (nx !== ny) return nx ? 1 : -1; return (x > y ? 1 : x < y ? -1 : 0) * sort.d; });
+// Sort + totals via the shared kit Table (Kevin 2026-10-30). `initial` only sets the starting order;
+// sort keys are the raw values, totals leave out the AI dialer row (AI activity is not in human totals).
+function STable({ cols, rows, initial, filter = true, rowClass, ratios, noTotals }: { cols: C[]; rows: any[]; initial?: string; filter?: boolean; rowClass?: (r: any) => string; ratios?: Ratios; noTotals?: boolean }) {
+  const [q, setQ] = useState("");
+  const shown = rows.filter((r) => !q || String(r[cols[0].k]).toLowerCase().includes(q.toLowerCase()));
+  if (initial) shown.sort((a, b) => { const x = a[initial], y = b[initial]; const nx = x == null, ny = y == null; if (nx !== ny) return nx ? 1 : -1; return x > y ? -1 : x < y ? 1 : 0; });
+  const cell = (c: C, r: any) => { const v = r[c.k]; const text = c.f ? c.f(v) : num(v);
+    const sort = v == null || (typeof v === "number" && (!isFinite(v) || v < 0)) ? null : typeof v === "number" ? v : undefined;
+    return c.k === cols[0].k && r._ai ? { text, node: <>{v}<AIRow /></>, sort } : { text, sort }; };
+  const hasAI = shown.some((r) => r._ai);
   return <>{filter ? <div className="fa-filters"><input type="search" placeholder={`Filter ${cols[0].l.toLowerCase()}`} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter" /><span className="caption">{shown.length} of {rows.length}</span></div> : null}
-    <div className="tablewrap"><table className="fa-agents"><thead><tr>{cols.map((c) => <th key={c.k} className={(c.n ? "r " : "") + "sortable"} onClick={() => setSort({ k: c.k, d: sort.k === c.k ? -sort.d : c.n ? -1 : 1 })}>{c.l}{sort.k === c.k ? (sort.d === 1 ? " ▲" : " ▼") : ""}</th>)}</tr></thead>
-      <tbody>{shown.map((r, i) => <tr key={i} className={rowClass?.(r) ?? ""}>{cols.map((c) => <td key={c.k} className={c.n ? "r" : ""}>{c.k === cols[0].k && r._ai ? <>{r[c.k]}<AIRow /></> : c.f ? c.f(r[c.k]) : num(r[c.k])}</td>)}</tr>)}</tbody></table></div></>;
+    <Table className="fa-agents" columns={cols.map((c) => c.l)} tdClass={cols.map((c) => (c.n ? "r" : ""))} noTotals={noTotals} ratios={ratios}
+      rows={shown.map((r) => cols.map((c) => cell(c, r)))} rowClass={(_, i) => rowClass?.(shown[i]) || undefined}
+      inTotal={hasAI ? (_, i) => !shown[i]._ai : undefined} totalLabel={hasAI ? "Total (excl. AI dialer)" : undefined} /></>;
 }
 const Card = ({ l, v, h }: { l: string; v: ReactNode; h?: string }) => <div className="fa-card"><div className="fa-v serif">{v}</div><div className="fa-l">{l}</div>{h ? <div className="fa-h">{h}</div> : null}</div>;
 
@@ -45,9 +53,9 @@ function Bars({ pts, label }: { pts: { x: string; a: number | null; b?: number |
 const BK = ["0-7", "8-30", "31-90", "90+", "never"];
 function Heat({ rows, stages }: { rows: Record<string, any>; stages: string[] }) {
   const mx = Math.max(1, ...stages.flatMap((s) => BK.map((b) => rows?.[s]?.[b] ?? 0)));
-  return <div className="tablewrap"><table className="ft-heat"><thead><tr><th>Stage</th>{BK.map((b) => <th key={b} className="r">{b === "never" ? "Never" : `${b} d`}</th>)}<th className="r">Total</th></tr></thead>
-    <tbody>{stages.filter((s) => rows?.[s]).map((s) => <tr key={s}><td>{s}</td>{BK.map((b) => { const v = rows[s]?.[b]; const a = typeof v === "number" ? Math.sqrt(v / mx) : 0;
-      return <td key={b} className="r" style={{ background: `rgba(0,81,155,${(a * 0.85).toFixed(3)})`, color: a > 0.5 ? "#fff" : "inherit" }}>{num(v)}</td>; })}<td className="r"><b>{num(rows[s]?.total)}</b></td></tr>)}</tbody></table></div>;
+  return <Table className="ft-heat" columns={["Stage", ...BK.map((b) => (b === "never" ? "Never" : `${b} d`)), "Total"]} tdClass={["", ...BK.map(() => "r"), "r"]}
+    rows={stages.filter((s) => rows?.[s]).map((s) => [s, ...BK.map((b) => { const v = rows[s]?.[b]; const a = typeof v === "number" ? Math.sqrt(v / mx) : 0;
+      return { text: num(v), style: { background: `rgba(0,81,155,${(a * 0.85).toFixed(3)})`, color: a > 0.5 ? "#fff" : "inherit" } }; }), { text: num(rows[s]?.total), node: <b>{num(rows[s]?.total)}</b> }])} />;
 }
 
 function Speed({ v, agent }: { v?: any; agent?: string | null }) {
@@ -84,7 +92,8 @@ function Funnel({ v, agent }: { v?: any; agent?: string | null }) {
       <div className="rc-funnel">{STEPS.map(([k, l]) => <div className="rc-step" key={k}><span className="rc-sl">{l}</span><span className="rc-track"><i style={{ width: `${(100 * (t[k] ?? 0)) / mx}%` }} /></span><b className="serif">{num(t[k])}</b></div>)}</div>
       <p className="caption">Closed volume {usd(t.closed_volume)}. Rates: {Object.entries(t.rates_pct ?? {}).map(([k, r]) => `${k} ${pc(r)}`).join(" · ") || "—"}</p></section>
     <section className="section"><h2 className="serif">By source</h2>
-      <STable initial="leads" rows={rows} cols={[{ k: "source", l: "Source" }, ...STEPS.map(([k, l]) => ({ k, l, n: true })), { k: "closed_volume", l: "Volume", f: usd, n: true }, { k: "contactR", l: "Contacted %", f: pc, n: true }, { k: "close", l: "Closed / leads", f: pc, n: true }]} />
+      <STable initial="leads" rows={rows} cols={[{ k: "source", l: "Source" }, ...STEPS.map(([k, l]) => ({ k, l, n: true })), { k: "closed_volume", l: "Volume", f: usd, n: true }, { k: "contactR", l: "Contacted %", f: pc, n: true }, { k: "close", l: "Closed / leads", f: pc, n: true }]}
+        ratios={{ "Contacted %": ["Contacted", "Leads"], "Closed / leads": ["Closed", "Leads"] }} />
       <Def t={v.definition} /><p className="caption">Steps are not strict subsets (a deal can exist without a logged appointment). Bulk imports excluded.</p></section></div>;
 }
 
@@ -103,7 +112,8 @@ function Stale({ v, agent }: { v?: any; agent?: string | null }) {
       {rows ? <Heat rows={rows} stages={stages} /> : <p className="caption">—</p>}
       <Def t={v.definition} /><p className="caption">"Never" = no human call since Jul 1, 2025. Texts and emails are not counted.</p></section>
     <section className="section"><h2 className="serif">By agent</h2>
-      <STable initial="total" rows={per} cols={[{ k: "name", l: "Agent" }, { k: "total", l: "Active people", n: true }, { k: "fresh", l: "Called ≤7d", n: true }, { k: "d90", l: "90+ d", n: true }, { k: "never", l: "Never", n: true }, { k: "pctStale", l: "% 90+ or never", f: pc, n: true }]} /></section></div>;
+      <STable initial="total" rows={per} cols={[{ k: "name", l: "Agent" }, { k: "total", l: "Active people", n: true }, { k: "fresh", l: "Called ≤7d", n: true }, { k: "d90", l: "90+ d", n: true }, { k: "never", l: "Never", n: true }, { k: "pctStale", l: "% 90+ or never", f: pc, n: true }]}
+        ratios={{ "% 90+ or never": [["90+ d", "Never"], "Active people"] }} /></section></div>;
 }
 
 function Hygiene({ v, hist, agent }: { v?: any; hist?: any[]; agent?: string | null }) {

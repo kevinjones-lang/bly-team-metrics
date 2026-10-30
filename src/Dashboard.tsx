@@ -215,7 +215,7 @@ export default function Dashboard() {
       </Section>
 
       <Section heading="Production" caption={`Sisu closings ${LRL} (lease/referral = sale price under $25k, a Ref/Lease address, or an eXp LeaseRental/Referral file). eXp sales counts never include leases/referrals; eXp team revenue follows the toggle. Three GCI figures: gross (Sisu, by close date), team share (eXp, by close date), deposited (P&L, by deposit date). Units (Kevin 2026-10-29): 2026 closed and pending units = unique eXp transaction IDs (digits after the decimal ignored); a deal where we represented both buyer and seller counts 2; co-agented deals split the unit; leases/referrals follow the toggle. Before 2026, units are Sisu transactions: Sisu buyer and seller records for the same address and close date count as one closing with volume once (GCI from both sides is kept). The unit goes to the team member on the deal; Deborah gets it only when she is alone on it, and her duplicate same-side records are dropped. Co-agented deals split the unit and volume between the agents, so agents sum to the team. Deborah's team-leader share of eXp revenue counts in team totals but on no agent row.`}>
-        <Table columns={["Metric", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
+        <Table noTotals columns={["Metric", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
           ["Closed units (transactions)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "2026: eXp IDs (both sides = 2); earlier: Sisu"],
           ["Closed volume", usd(s.sVol[i]) + (per === "ytd" ? `  (${yoy(s.sVol[2], s.sVol[4])})` : ""), "Sisu trans_amt"],
           ["Total GCI (Sisu gross)", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
@@ -237,7 +237,7 @@ export default function Dashboard() {
       </Section>
       <Section heading="Leads and speed to lead" caption="Source: Follow Up Boss people (created date, source, assignee). Speed to lead = first outbound FUB call after creation, non-manual leads, last 30 days; texts are not counted.">
         <Grid columns={2}>
-          <Table columns={["Metric", "Value"]} rows={[
+          <Table noTotals columns={["Metric", "Value"]} rows={[
             ["New leads, " + PL[per], n0(s.leads[i])],
             ["Median minutes to first call", stl[0] == null ? "n/a" : stl[0].toFixed(1)],
             ["Leads with an outbound call", `${stl[1]} of ${stl[2]} (${pct(stl[1], stl[2])})`],
@@ -250,7 +250,7 @@ export default function Dashboard() {
         {s.srcM ? <Text>Bars: leads by source, then by assignee, month to date.</Text> : null}
       </Section>
       <Section heading="Activity">
-        <Table columns={["Activity", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
+        <Table noTotals columns={["Activity", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
           ["Outbound calls", n0(s.out[i]), "FUB calls, humans only (AI dialer excluded)"],
           ["Calls 60s or longer (in + out)", n0(s.conn[i]), "FUB calls"],
           ["Appointments created", n0(s.appt[i]), "FUB appointments"],
@@ -318,7 +318,7 @@ export default function Dashboard() {
       <Section heading="ISA tracking" caption={`${PL[per]}. Human ISAs = FUB "ISA Team" minus Jesse Jones (Fello AI dialer, reported separately below). Leases ${lease === "in" ? "included" : "excluded"}. Converted = FUB tags "<Name> - Converted", "<Name> Converted", and "... Converted Lease".`}>
         {gA ? null : <Segmented options={isaOpts} value={isaSel} onChange={setIsaSel} />}
         <Grid columns={2}>
-          <Table columns={["ISA activity", PL[per]]} rows={[
+          <Table noTotals columns={["ISA activity", PL[per]]} rows={[
             ["Leads routed to ISA", n0(IS.assigned[i])],
             ["Leads worked (called)", n0(IS.worked[i])],
             ["Outbound calls", n0(IS.out[i])],
@@ -335,7 +335,7 @@ export default function Dashboard() {
         <Text>{`Rates: worked to conversation ${pct(IS.conv_people[i], IS.worked[i])}, conversation to appointment ${pct(IS.appt_people[i], IS.conv_people[i])}, worked to converted ${pct(IS.converted[i], IS.worked[i])}. Speed to lead covers leads routed to the ISA, measured to the first outbound call by anyone.`}</Text>
         <Section heading="Downstream of converted leads">
           <Grid columns={2}>
-            <Table columns={["Outcome", "Converted in period"]} rows={[
+            <Table noTotals columns={["Outcome", "Converted in period"]} rows={[
               ["Has a FUB deal", n0(IS.fub_deal[i])], ["FUB deals pending / closed", `${n0(IS.fub_pending[i])} / ${n0(IS.fub_closed[i])}`],
               ["Sisu pending", n0(IS.s_pending[i])], ["Sisu closed", n0(IS.s_closed[i])], ["Closed volume", usd(IS.s_vol[i])], ["Closed GCI", usd(IS.s_gci[i])]]} />
             <Table columns={["Tag owner", "Converted", "FUB deal", "Closed", "GCI"]} rows={Object.entries(ISA["alltime" + NL]).map(([k, v]: any) => [ISA.labels[k] || k, n0(v.converted), n0(v.fub_deal), n0(v.s_closed), usd(v.s_gci)])} />
@@ -369,7 +369,7 @@ export default function Dashboard() {
       </Section>
       <Section heading="AI dialer (Fello)" caption={`${PL[per]}. Conversion tool, not part of human ISA totals. Handoff = FUB "Felix AI Handoff" event (exact time; ${AI.events} events, ${AI.people} people since ${AI.first}).`}>
         <Grid columns={2}>
-          <Table columns={["AI dialer", PL[per]]} rows={[
+          <Table noTotals columns={["AI dialer", PL[per]]} rows={[
             ["Handoffs", n0(AI.handoffs[i])],
             ["New leads assigned to the AI dialer", n0(AI.assigned_ai[i])],
             ["Human called after handoff", `${n0(AI.responded[i])} of ${n0(AI.handoffs[i])}`],
@@ -390,7 +390,7 @@ export default function Dashboard() {
         </Section>
       </Section>
       <Section heading="Agent scorecard" caption={`${PL[per]}; Sisu production ${LRL}, FUB leads and calls.`}>
-        <Table columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Units", "Volume", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = r.s.sUnits[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(r.s.sVol[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
+        <Table ratios={{ "Co$/unit": ["Company dollar", "Units"] }} columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Units", "Volume", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = r.s.sUnits[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(r.s.sVol[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
         <Text>{`Total GCI = Sisu gross commission. Company dollar = all eXp Team Revenue on Closed deals (every agent’s team cut + 100% Deb + 100% Kevin commission lines). Agent GCI = Total GCI − Company dollar for other agents; $0 for Deb and Kevin (their commission is in company dollar). GCI and company dollar come from different systems, so Agent GCI is a working split for the room, not a paycheck figure. eXp has no agent-payout column; Sisu broker-review / royalty / transaction-fee fields are empty on 2026 closings.`}</Text>
       </Section>
       <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; Sisu production ${LRL}. Total GCI / Company dollar / Agent GCI — see note under the scorecard.`}>
@@ -410,12 +410,12 @@ export default function Dashboard() {
         <Table columns={["Original source", ...AT.cols]} rows={AT.src.map((s: string, r: number) => [s, ...(atM[r] || []).map(atFmt)])} />
         <Text>Rows: FUB source field (never overwritten). Columns: assist tools, ISA conversion, leads with no assist, any assist, and all leads. Closed, volume and GCI count only Sisu closings (matched to the lead by email or name) whose close date falls in the selected period.</Text>
         <Section heading="Closed GCI by original lead source">
-          <Table columns={["FUB source", "Closed", "Volume", "GCI"]} rows={(() => { const rr = atGs.map((r: any) => [r[0], n0(r[1]), usdK(r[2] * 1000), usd(r[3])]); const k = rr.findIndex((r: any) => String(r[0]).startsWith("All other") || r[0] === "Total"); return k < 0 ? sortRowsBy(rr, srt.gs) : [...sortRowsBy(rr.slice(0, k), srt.gs), ...rr.slice(k)]; })()} />
+          <Table noTotals columns={["FUB source", "Closed", "Volume", "GCI"]} rows={(() => { const rr = atGs.map((r: any) => [r[0], n0(r[1]), usdK(r[2] * 1000), usd(r[3])]); const k = rr.findIndex((r: any) => String(r[0]).startsWith("All other") || r[0] === "Total"); return k < 0 ? sortRowsBy(rr, srt.gs) : [...sortRowsBy(rr.slice(0, k), srt.gs), ...rr.slice(k)]; })()} />
           <Text>{`Top 10 sources, then all other sources and the total of every closing matched to a FUB lead (${LRL}). "All other sources" and "Total" stay at the bottom when sorting.`}</Text>
           <Text>{`Exact FUB source values, top 10, closings dated in the period, ${LRL}. 2026 closings from leads created before 2026 count toward that lead's original FUB source. In agent view this shows the whole team.`}</Text>
         </Section>
         <Section heading="Assist tool performance">
-          <Table columns={["Tool", "Leads", "With appt", "Appt rate", "FUB deal", "Closed", "Volume", "GCI", "Last touch before milestone"]}
+          <Table noTotals ratios={{ "Appt rate": ["With appt", "Leads"] }} columns={["Tool", "Leads", "With appt", "Appt rate", "FUB deal", "Closed", "Volume", "GCI", "Last touch before milestone"]}
             rows={atTC.map((t: string, k: number) => [t, atT[k]]).filter((x: any) => x[1]).map(([t, v]: any) => [t, n0(v[0]), n0(v[1]), pct(v[1], v[0]), n0(v[2]), n0(v[3]), usdK(v[4] * 1000), usd(v[5]), n0(v[6])])} />
           <Text>Last touch = the latest timestamped assist (or ISA conversion) at or before the lead's first FUB appointment, else first FUB deal, else ISA conversion. Tag-only signals have no date and can't be last touch.</Text>
         </Section>
@@ -439,10 +439,10 @@ export default function Dashboard() {
           </Grid>
         </Section>
         <Section heading="All lines by month">
-          <Table columns={["Line", ...PNL.ms.map((m: string, k: number) => mNamesG[k]), "YTD"]} rows={sortRowsBy(PNL.rows.map((r: any[]) => [r[0], ...r.slice(1).map((v: number) => v < 0 ? { text: "-" + usd(-v), tone: "danger" } : usd(v))]), srt.pnl)} />
+          <Table noTotals columns={["Line", ...PNL.ms.map((m: string, k: number) => mNamesG[k]), "YTD"]} rows={sortRowsBy(PNL.rows.map((r: any[]) => [r[0], ...r.slice(1).map((v: number) => v < 0 ? { text: "-" + usd(-v), tone: "danger" } : usd(v))]), srt.pnl)} />
           
         </Section>
-        <Table columns={["P&L report through", "YTD profit", "Federal tax estimate"]} rows={PNL.est.map((r: any[]) => [r[0], usd(r[1]), usd(r[2])])} />
+        <Table noTotals columns={["P&L report through", "YTD profit", "Federal tax estimate"]} rows={PNL.est.map((r: any[]) => [r[0], usd(r[1]), usd(r[2])])} />
       </Section>
       <Section heading="Data reconciliation" caption={`Year to date. Sisu closings not attributable to a 2026 FUB lead, checked against the eXp export (with SkySlope stage) and FUB person lookups by email/name. Sisu YTD (${LRL}): ${nU(RCS[0])} closings (transactions, same dedupe as the headline), ${usd(RCS[1])} GCI; ${nU(RCB[0])} (${usd(RCB[1])}) matched before reconciliation, plus categories a to e below, equals that total. Category f is eXp-only and adds to the attribution total. eXp YTD closed: ${n0(AT.rc.exp[0])} files, ${n0(AT.rc.expm)} matched to Sisu.`}>
         <Table columns={["Category", "Closings", "GCI", "Now counted as"]} rows={[

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePersist } from "./agent";
 import { createPortal } from "react-dom";
 import "./myt.css";
+import { useSorted } from "./kit";
 
 type Metric = { k: string; label: string; tag?: string; conflict?: number; src: string; fmt: string; team?: number; missing?: number; why?: string; agg?: string; num?: string; den?: string; fixed?: string; group: string; flag?: Record<string, string> };
 type Grid = (number | null)[][];
@@ -105,6 +106,8 @@ function MetricTable({ m, E, D, rep, ry }: { m: Metric; E: any; D: any; rep: num
     return { y, months, tot, mom: pct(cm, pm), yoy: pct(cm, ly), ytdp: pct(yt, lyt) };
   });
   const isAvg = m.num || m.k === "agents" || m.k === "active" || m.agg === "last";
+  // Sort only (Kevin 2026-10-30): rows are years compared side by side and the table already has a Total column; a sum across years is not a figure anyone uses.
+  const { order, head, mark } = useSorted(rows, (r, k) => (k === 0 ? r.y : k <= 12 ? r.months[k - 1] : [r.tot, r.mom, r.yoy, r.ytdp][k - 13]));
   return (
     <section className={"myt-metric" + (missing ? " is-missing" : "")}>
       <header className="myt-mh">
@@ -117,9 +120,9 @@ function MetricTable({ m, E, D, rep, ry }: { m: Metric; E: any; D: any; rep: num
       </header>
       <div className="myt-scroll" tabIndex={0} role="region" aria-label={m.label + " by year and month"}>
         <table className="myt-table">
-          <thead><tr><th className="yr">Year</th>{MON.map((x, i) => <th key={x} className={i === mi ? "sel" : ""}>{x}</th>)}
-            <th className="tot">{isAvg ? (m.agg === "last" ? "Dec / last" : "Year") : "Total"}</th><th className="chg">MOM %<small>{MON[mi]}</small></th><th className="chg">YOY %<small>{MON[mi]}</small></th><th className="chg">YTD %<small>Jan–{MON[mi]}</small></th></tr></thead>
-          <tbody>{rows.map((r) => (
+          <thead><tr><th className="yr" {...head(0)}>Year{mark(0)}</th>{MON.map((x, i) => <th key={x} className={i === mi ? "sel" : ""} {...head(i + 1)}>{x}{mark(i + 1)}</th>)}
+            <th className="tot" {...head(13)}>{isAvg ? (m.agg === "last" ? "Dec / last" : "Year") : "Total"}{mark(13)}</th><th className="chg" {...head(14)}>MOM %{mark(14)}<small>{MON[mi]}</small></th><th className="chg" {...head(15)}>YOY %{mark(15)}<small>{MON[mi]}</small></th><th className="chg" {...head(16)}>YTD %{mark(16)}<small>Jan–{MON[mi]}</small></th></tr></thead>
+          <tbody>{order.map((j) => rows[j]).map((r) => (
             <tr key={r.y} className={r.y === ry ? "cur" : ""}><th className="yr">{r.y}</th>
               {r.months.map((x, i) => <td key={i} className={i === mi ? "sel" : ""}>{fmt(x, m.fmt)}</td>)}
               <td className="tot">{fmt(r.tot, m.fmt)}{m.flag && m.flag[String(r.y)] ? <sup className="myt-flag" title={m.flag[String(r.y)]}>*</sup> : null}</td><td className={"chg " + sign(r.mom)}>{r.mom}</td><td className={"chg " + sign(r.yoy)}>{r.yoy}</td><td className={"chg " + sign(r.ytdp)}>{r.ytdp}</td></tr>))}
@@ -226,6 +229,7 @@ export default function Myt({ data, lrOn = true, agent, setAgent, agentList }: {
   const [pick, setPick] = useState(false);
   const [dl, setDl] = useState(false);
   const [msg, setMsg] = useState("");
+  const confSort = useSorted((D?.conflicts || []) as any[], (c: any, k: number) => [c.metric, c.year, c.months, c.tracker, c.sheet, c.diff_pct][k]);
   const setSel = (n: Set<string>) => { setSelRaw(n); try { localStorage.setItem(LS, JSON.stringify([...n])); } catch { /* ignore */ } };
   useEffect(() => {
     const after = () => { setPrinting(false); document.body.classList.remove("myt-printing"); };
@@ -306,8 +310,8 @@ export default function Myt({ data, lrOn = true, agent, setAgent, agentList }: {
         {scope !== "team" ? <p className="caption">Agent view shows agent-level Sisu metrics and the agent's eXp team share. Team-only metrics (agent count, recruiting, P&amp;L, FUB totals, ISA) appear under The Bly Team.</p> : null}
         {conf.length || notes.length ? <details className="myt-missing"><summary>Tracker vs Bly sheet: {conf.length} differences over 5% · sheet corrections applied ({notes.length})</summary>
           <ul>{notes.map((n: string, i: number) => <li key={"n" + i}>{n}</li>)}</ul>
-          <div className="myt-scroll"><table className="myt-table myt-conf"><thead><tr><th className="yr">Metric</th><th>Year</th><th>Months</th><th>Tracker (used)</th><th>Bly sheet</th><th>Diff</th></tr></thead>
-            <tbody>{conf.map((c: any, i: number) => { const f = /Volume|GCI|Dollar|Income|Profit|Expenses/.test(c.metric) ? "$" : "n"; return <tr key={i}><th className="yr">{c.metric}</th><td>{c.year}</td><td>{c.months}</td><td>{fmt(c.tracker, f)}</td><td>{fmt(c.sheet, f)}</td><td>{(c.diff_pct > 0 ? "+" : "") + c.diff_pct}%</td></tr>; })}</tbody></table></div></details> : null}
+          <div className="myt-scroll"><table className="myt-table myt-conf"><thead><tr>{["Metric", "Year", "Months", "Tracker (used)", "Bly sheet", "Diff"].map((h, k) => <th key={h} className={k ? undefined : "yr"} {...confSort.head(k)}>{h}{confSort.mark(k)}</th>)}</tr></thead>
+            <tbody>{confSort.order.map((j) => conf[j]).map((c: any, i: number) => { const f = /Volume|GCI|Dollar|Income|Profit|Expenses/.test(c.metric) ? "$" : "n"; return <tr key={i}><th className="yr">{c.metric}</th><td>{c.year}</td><td>{c.months}</td><td>{fmt(c.tracker, f)}</td><td>{fmt(c.sheet, f)}</td><td>{(c.diff_pct > 0 ? "+" : "") + c.diff_pct}%</td></tr>; })}</tbody></table></div></details> : null}
       </div>
       <Report D={D} scope={scope} v={v} rep={rep} ry={ry} groups={groups} sel={sel} />
       {pick ? createPortal(<Picker D={D} scopeMetrics={scopeMetrics} sel={sel} setSel={setSel} onClose={() => setPick(false)} />, document.body) : null}

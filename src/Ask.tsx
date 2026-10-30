@@ -1,6 +1,7 @@
 // Ask tab: Sunburst-style coach. Prebuilt pipeline answers always work; free-form chat uses the coach-ask Edge Function when an LLM key is configured.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase, SB_URL } from "./sb";
+import { Table } from "./kit";
 
 type Msg = { role: "user" | "assistant"; content: string; tag?: string };
 
@@ -20,8 +21,9 @@ export function Markdown({ md }: { md: string }) {
     if (l.trim().startsWith("|") && lines[i + 1] && /^\s*\|?\s*:?-{3}/.test(lines[i + 1])) {
       const head = cells(l); const rows: string[][] = []; i += 2;
       while (i < lines.length && lines[i].trim().startsWith("|")) rows.push(cells(lines[i++]));
-      out.push(<div className="tablewrap" key={i}><table><thead><tr>{head.map((h, k) => <th key={k} className={k && rows.every((r) => isNum(r[k] || "")) ? "num" : ""}>{h}</th>)}</tr></thead>
-        <tbody>{rows.map((r, a) => <tr key={a}>{r.map((c, k) => <td key={k} className={k && isNum(c) ? "num" : ""}>{inline(c, k)}</td>)}</tr>)}</tbody></table></div>);
+      // Sortable, no totals row: answer tables are often already summaries (Kevin 2026-10-30).
+      const cls = head.map((_, k) => (k && rows.every((r) => isNum(r[k] || "")) ? "num" : ""));
+      out.push(<Table key={i} noTotals columns={head} tdClass={cls} rows={rows.map((r) => r.map((c, k) => ({ text: c.replace(/[*_`]/g, "").replace("−", "-"), node: inline(c, k) })))} />);
       continue;
     }
     if (/^#{1,3} /.test(l)) { const n = l.match(/^#+/)![0].length; const T = (n === 1 ? "h3" : n === 2 ? "h3" : "h4") as any; out.push(<T key={i} className="serif">{inline(l.replace(/^#+ /, ""), i)}</T>); i++; continue; }
