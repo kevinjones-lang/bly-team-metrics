@@ -1,0 +1,995 @@
+{
+ "schema": "ylopo.v1",
+ "as_of": "2026-10-30T10:52:04-05:00",
+ "timezone": "America/Chicago",
+ "generated_by": "from-ylopo-tracker/ylopo_build_input.py",
+ "sources": {
+  "ylopo_dashboard": {
+   "name": "Ylopo Stars dashboard",
+   "snapshots": [
+    "raw/stars_2026-10-30.json"
+   ],
+   "latest_read_at": "2026-10-30T10:43:00-05:00"
+  },
+  "invoice_register": {
+   "name": "Ylopo Invoice Register (Google Sheet)",
+   "spreadsheet_id": "1KCTOwy9crz7FURQddnTKJTnYU3QaYRSxXx_W8-DJkGA",
+   "read_at": "2026-10-30T10:49:00-05:00",
+   "cache": "raw/invoices_2026-10-30.json",
+   "tabs_used": [
+    "Invoice Summary",
+    "Line Items",
+    "Dashboard",
+    "Monthly Breakdown"
+   ]
+  },
+  "fub_outcomes": {
+   "name": "FUB Manager ylopo_outcomes_latest.json",
+   "path": "from-fub-manager/ylopo_outcomes_latest.json",
+   "generated_at": "2026-10-30T10:33:16-05:00",
+   "data_through": "2026-10-29",
+   "ylopo_source_strings": [
+    "Ylopo",
+    "Ylopo Seller",
+    "Ylopo Prospecting",
+    "Ylopo LSA",
+    "Open House (Ylopo)"
+   ]
+  }
+ },
+ "assumptions": {
+  "month_alignment": "Invoice month = service month. Monthly Platform & Marketing invoices are billed on the 1st for that month (the $1,600 Re-Marketing line matches the Ylopo dashboard's monthly budget). Property Media and AI Services invoices are counted in the month of the invoice date. Each month's 'Previous Monthly Marketing Charge Adjustment' (a true-up for the prior month) stays in the invoice month and is NOT counted as ad spend.",
+  "all_in_cost": "Sum of invoice Total by invoice month (Invoice Summary tab); equals the Line Items sum.",
+  "ad_spend": "Line Items categories 'Digital Advertising' + 'Google LSA Spend' (paid media) by invoice month.",
+  "cost_per_lead_denominator": "Ylopo dashboard Distributed Leads (This Month), available only from 2026-10 onward; earlier months are null. 'dashboard_spend_basis_unconfirmed' divides Ylopo's displayed Total Spent (month-to-date) by Distributed Leads and is unconfirmed.",
+  "cost_per_appointment_denominator": "FUB Ylopo-sourced appointments set, by appointment created month.",
+  "cost_per_closing_denominator": "FUB Ylopo-linked closed deals, by month the deal moved to Closed.",
+  "closings_unit": "FUB Manager counts 1 unit per FUB deal in stage Closed linked to a Ylopo lead. Whether a both-sides transaction appears as 2 FUB deals (eXp transaction-ID units, both sides = 2) is not confirmed, so closings carry closings_unit='fub_deals_unconfirmed_vs_exp_units'. 5 more all-time Ylopo leads are person-stage Closed with no closed deal; they are undated and not in monthly rows.",
+  "missing_values": "null means the source does not have the number; 0 is used only when the source shows 0."
+ },
+ "history_policy": "Append-only. Rows are never edited or deleted. When a period's values change (for example the month in progress, or invoices added later), a new row for that period is appended with a later recorded_at. Use the row with the latest recorded_at for each period.",
+ "sheet_inconsistencies": [
+  "Invoice INV473305 (2026-01-06): Invoice Summary 'Line Item Total' column shows $95.00 and Reconciled='No', but invoice total is $190.00 and the Line Items tab sums to $190.00.",
+  "Monthly Breakdown 2026-01 total $5,245.77 vs invoice/Line Items total $5,340.77 (diff $95.00; Monthly Breakdown Property Media $570.00 vs Line Items $665.00). The Dashboard month table shows $5,340.77.",
+  "Dashboard category 'Property Media' YTD $7,470.00 vs Line Items $7,565.00 (Dashboard category list sums to $49,277.48, not $49,372.48).",
+  "Monthly Breakdown splits out an 'LSA Tech Charge' column ($350/mo); in Line Items and Charge Breakdown those Google LSA platform fees are under 'Software & Platform'. This file uses the Line Items categories.",
+  "The register only has invoices dated 2026-01 through 2026-08; later months have no invoices entered yet, so their costs are null."
+ ],
+ "totals": {
+  "ytd": {
+   "year": 2026,
+   "fub_range": {
+    "from": "2026-01-01",
+    "to": "2026-10-29"
+   },
+   "invoice_months_covered": [
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08"
+   ],
+   "all_in_cost": 49372.48,
+   "ad_spend": 17731.18,
+   "category_breakdown": {
+    "AI Services": 14487.1,
+    "Adjustment": -122.8,
+    "Digital Advertising": 12800.0,
+    "Google LSA Spend": 4931.18,
+    "MLS / IDX": 152.0,
+    "Property Media": 7565.0,
+    "Software & Platform": 9560.0
+   },
+   "invoice_count": 37,
+   "fub_new_leads": 583,
+   "fub_appointments_set": 65,
+   "fub_closings": 10,
+   "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+  },
+  "cost_per_matched_months": {
+   "note": "Cost and FUB counts summed over the same months only (months that have invoices in the register), so the numerator and denominator cover one period.",
+   "months": [
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08"
+   ],
+   "all_in_cost": 49372.48,
+   "ad_spend": 17731.18,
+   "fub_new_leads": 537,
+   "fub_appointments_set": 44,
+   "fub_closings": 7,
+   "ylopo_distributed_leads": null,
+   "lead": {
+    "all_in": null,
+    "ad_spend_only": null,
+    "denominator": "ylopo_distributed_leads",
+    "note": "null until a month has both invoices and a Ylopo dashboard Distributed Leads reading."
+   },
+   "appointment": {
+    "all_in": 1122.1,
+    "ad_spend_only": 402.98,
+    "denominator": "fub_ylopo_appointments_set"
+   },
+   "closing": {
+    "all_in": 7053.21,
+    "ad_spend_only": 2533.03,
+    "denominator": "fub_ylopo_closings",
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+   }
+  },
+  "current_month": {
+   "period": "2026-10",
+   "status": "partial",
+   "invoices": null,
+   "fub": {
+    "new_leads": 23,
+    "appointments_set": 8,
+    "leads_with_first_appt": 4,
+    "closings": 1,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-10-01",
+     "to": "2026-10-29"
+    }
+   },
+   "ylopo_dashboard": {
+    "as_of": "2026-10-30T10:43:00-05:00",
+    "range_label": "This Month",
+    "range": {
+     "from": "2026-10-01",
+     "to": "2026-10-30"
+    },
+    "total_spent": 1464.47,
+    "total_marketing_budget": 1600.0,
+    "generated_leads": 116,
+    "distributed_leads": 32,
+    "avg_cost_per_distributed_lead_displayed": 0,
+    "mission_control_last_30d": {
+     "total_leads": 51677,
+     "priority_leads": 237,
+     "engaged_leads": 339,
+     "handraisers": 11
+    }
+   },
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": 45.76
+    },
+    "appointment": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_invoices_in_register",
+    "month_in_progress",
+    "closings_unit_unconfirmed",
+    "ylopo_displayed_avg_cost_per_distributed_lead_0_inconsistent_with_spend"
+   ]
+  },
+  "fub_all_time": {
+   "ylopo_leads": 10509,
+   "appointments_set": 207,
+   "leads_with_appointment": 122,
+   "closings_dated": 68,
+   "closings_undated": 5,
+   "closings_total_units": 73,
+   "closed_leads": 61,
+   "closed_deal_volume": 18245980
+  },
+  "fub_windows": {
+   "last_7d": {
+    "from": "2026-10-23",
+    "to": "2026-10-29",
+    "new_leads": 3,
+    "appointments_set": 4,
+    "leads_with_first_appt": 0,
+    "closings": 0
+   },
+   "last_30d": {
+    "from": "2026-09-30",
+    "to": "2026-10-29",
+    "new_leads": 23,
+    "appointments_set": 8,
+    "leads_with_first_appt": 4,
+    "closings": 1
+   },
+   "last_90d": {
+    "from": "2026-08-01",
+    "to": "2026-10-29",
+    "new_leads": 63,
+    "appointments_set": 24,
+    "leads_with_first_appt": 14,
+    "closings": 4
+   }
+  },
+  "ylopo_dashboard_latest": {
+   "date": "2026-10-30",
+   "read_at": "2026-10-30T10:43:00-05:00",
+   "admin_users": 112,
+   "campaigns": {
+    "listing_rockets": 73,
+    "ppc": 0,
+    "social_media": 0,
+    "custom": 0,
+    "remarketing": 4
+   },
+   "listing_rocket_statuses": {
+    "launch": 145,
+    "active": 0,
+    "pending_off_market": 15,
+    "inactive": 0
+   }
+  }
+ },
+ "agents": [],
+ "agents_note": "Empty: no source gives per-agent Ylopo numbers yet. Names only when populated; no contact details.",
+ "history": [
+  {
+   "period": "2026-01",
+   "period_type": "month",
+   "from": "2026-01-01",
+   "to": "2026-01-31",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 5,
+    "all_in_cost": 5340.77,
+    "ad_spend": 2079.94,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 479.94
+    },
+    "category_breakdown": {
+     "AI Services": 1337.1,
+     "Adjustment": 44.73,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 479.94,
+     "MLS / IDX": 19.0,
+     "Property Media": 665.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 51,
+    "appointments_set": 8,
+    "leads_with_first_appt": 4,
+    "closings": 1,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-01-01",
+     "to": "2026-01-31"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 667.6,
+     "ad_spend_only": 259.99,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": 5340.77,
+     "ad_spend_only": 2079.94,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-02",
+   "period_type": "month",
+   "from": "2026-02-01",
+   "to": "2026-02-28",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 6,
+    "all_in_cost": 7314.7,
+    "ad_spend": 2108.39,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 508.39
+    },
+    "category_breakdown": {
+     "AI Services": 2950.0,
+     "Adjustment": -97.69,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 508.39,
+     "MLS / IDX": 19.0,
+     "Property Media": 1140.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 155,
+    "appointments_set": 5,
+    "leads_with_first_appt": 1,
+    "closings": 2,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-02-01",
+     "to": "2026-02-28"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 1462.94,
+     "ad_spend_only": 421.68,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": 3657.35,
+     "ad_spend_only": 1054.19,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-03",
+   "period_type": "month",
+   "from": "2026-03-01",
+   "to": "2026-03-31",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 4,
+    "all_in_cost": 7358.28,
+    "ad_spend": 2122.16,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 522.16
+    },
+    "category_breakdown": {
+     "AI Services": 2950.0,
+     "Adjustment": 17.12,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 522.16,
+     "MLS / IDX": 19.0,
+     "Property Media": 1055.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 112,
+    "appointments_set": 4,
+    "leads_with_first_appt": 4,
+    "closings": 0,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-03-01",
+     "to": "2026-03-31"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 1839.57,
+     "ad_spend_only": 530.54,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-04",
+   "period_type": "month",
+   "from": "2026-04-01",
+   "to": "2026-04-30",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 5,
+    "all_in_cost": 7408.01,
+    "ad_spend": 2198.1,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 598.1
+    },
+    "category_breakdown": {
+     "AI Services": 2950.0,
+     "Adjustment": -144.09,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 598.1,
+     "MLS / IDX": 19.0,
+     "Property Media": 1190.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 101,
+    "appointments_set": 2,
+    "leads_with_first_appt": 2,
+    "closings": 1,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-04-01",
+     "to": "2026-04-30"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 3704.01,
+     "ad_spend_only": 1099.05,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": 7408.01,
+     "ad_spend_only": 2198.1,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-05",
+   "period_type": "month",
+   "from": "2026-05-01",
+   "to": "2026-05-31",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 4,
+    "all_in_cost": 7766.17,
+    "ad_spend": 2150.52,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 550.52
+    },
+    "category_breakdown": {
+     "AI Services": 2950.0,
+     "Adjustment": 26.65,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 550.52,
+     "MLS / IDX": 19.0,
+     "Property Media": 1425.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 40,
+    "appointments_set": 9,
+    "leads_with_first_appt": 6,
+    "closings": 0,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-05-01",
+     "to": "2026-05-31"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 862.91,
+     "ad_spend_only": 238.95,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-06",
+   "period_type": "month",
+   "from": "2026-06-01",
+   "to": "2026-06-30",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 4,
+    "all_in_cost": 4830.21,
+    "ad_spend": 2089.83,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 489.83
+    },
+    "category_breakdown": {
+     "AI Services": 450.0,
+     "Adjustment": 31.38,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 489.83,
+     "MLS / IDX": 19.0,
+     "Property Media": 1045.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 32,
+    "appointments_set": 4,
+    "leads_with_first_appt": 2,
+    "closings": 1,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-06-01",
+     "to": "2026-06-30"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 1207.55,
+     "ad_spend_only": 522.46,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": 4830.21,
+     "ad_spend_only": 2089.83,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-07",
+   "period_type": "month",
+   "from": "2026-07-01",
+   "to": "2026-07-31",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 7,
+    "all_in_cost": 5328.01,
+    "ad_spend": 2748.51,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 1148.51
+    },
+    "category_breakdown": {
+     "AI Services": 450.0,
+     "Adjustment": -34.5,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 1148.51,
+     "MLS / IDX": 19.0,
+     "Property Media": 950.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 29,
+    "appointments_set": 9,
+    "leads_with_first_appt": 5,
+    "closings": 1,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-07-01",
+     "to": "2026-07-31"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 592.0,
+     "ad_spend_only": 305.39,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": 5328.01,
+     "ad_spend_only": 2748.51,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-08",
+   "period_type": "month",
+   "from": "2026-08-01",
+   "to": "2026-08-31",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": {
+    "invoice_count": 2,
+    "all_in_cost": 4026.33,
+    "ad_spend": 2233.73,
+    "ad_spend_components": {
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 633.73
+    },
+    "category_breakdown": {
+     "AI Services": 450.0,
+     "Adjustment": 33.6,
+     "Digital Advertising": 1600.0,
+     "Google LSA Spend": 633.73,
+     "MLS / IDX": 19.0,
+     "Property Media": 95.0,
+     "Software & Platform": 1195.0
+    }
+   },
+   "fub": {
+    "new_leads": 17,
+    "appointments_set": 3,
+    "leads_with_first_appt": 1,
+    "closings": 1,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-08-01",
+     "to": "2026-08-31"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": 1342.11,
+     "ad_spend_only": 744.58,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": 4026.33,
+     "ad_spend_only": 2233.73,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-09",
+   "period_type": "month",
+   "from": "2026-09-01",
+   "to": "2026-09-30",
+   "status": "complete",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": null
+   },
+   "invoices": null,
+   "fub": {
+    "new_leads": 23,
+    "appointments_set": 13,
+    "leads_with_first_appt": 9,
+    "closings": 2,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-09-01",
+     "to": "2026-09-30"
+    }
+   },
+   "ylopo_dashboard": null,
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": null
+    },
+    "appointment": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_invoices_in_register",
+    "no_ylopo_dashboard_reading",
+    "closings_unit_unconfirmed"
+   ]
+  },
+  {
+   "period": "2026-10",
+   "period_type": "month",
+   "from": "2026-10-01",
+   "to": "2026-10-31",
+   "status": "partial",
+   "recorded_at": "2026-10-30T10:52:04-05:00",
+   "source_as_of": {
+    "invoice_register": "2026-10-30T10:49:00-05:00",
+    "fub": "2026-10-30T10:33:16-05:00",
+    "fub_data_through": "2026-10-29",
+    "ylopo_dashboard": "2026-10-30T10:43:00-05:00"
+   },
+   "invoices": null,
+   "fub": {
+    "new_leads": 23,
+    "appointments_set": 8,
+    "leads_with_first_appt": 4,
+    "closings": 1,
+    "closings_unit": "fub_deals_unconfirmed_vs_exp_units",
+    "range": {
+     "from": "2026-10-01",
+     "to": "2026-10-29"
+    }
+   },
+   "ylopo_dashboard": {
+    "as_of": "2026-10-30T10:43:00-05:00",
+    "range_label": "This Month",
+    "range": {
+     "from": "2026-10-01",
+     "to": "2026-10-30"
+    },
+    "total_spent": 1464.47,
+    "total_marketing_budget": 1600.0,
+    "generated_leads": 116,
+    "distributed_leads": 32,
+    "avg_cost_per_distributed_lead_displayed": 0,
+    "mission_control_last_30d": {
+     "total_leads": 51677,
+     "priority_leads": 237,
+     "engaged_leads": 339,
+     "handraisers": 11
+    }
+   },
+   "cost_per": {
+    "lead": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "ylopo_distributed_leads",
+     "dashboard_spend_basis_unconfirmed": 45.76
+    },
+    "appointment": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_appointments_set"
+    },
+    "closing": {
+     "all_in": null,
+     "ad_spend_only": null,
+     "denominator": "fub_ylopo_closings",
+     "closings_unit": "fub_deals_unconfirmed_vs_exp_units"
+    }
+   },
+   "flags": [
+    "no_invoices_in_register",
+    "month_in_progress",
+    "closings_unit_unconfirmed",
+    "ylopo_displayed_avg_cost_per_distributed_lead_0_inconsistent_with_spend"
+   ]
+  }
+ ],
+ "daily_snapshots": [
+  {
+   "date": "2026-10-30",
+   "read_at": "2026-10-30T10:43:00-05:00",
+   "source": "ylopo_stars_dashboard",
+   "mission_control": {
+    "range_label": "Last 30 days",
+    "total_leads": 51677,
+    "priority_leads": 237,
+    "engaged_leads": 339,
+    "handraisers": 11
+   },
+   "marketing_snapshot": {
+    "view": "All Marketing",
+    "range_label": "This Month",
+    "month": "2026-10",
+    "total_spent": 1464.47,
+    "total_spent_pct_of_budget": 91,
+    "total_marketing_budget": 1600.0,
+    "budgets": {
+     "remarketing": {
+      "budget": 1600.0,
+      "remaining": 135.53,
+      "remaining_pct": 8
+     },
+     "ppc": {
+      "budget": 0.0
+     },
+     "ppc_plus": {
+      "budget": 0.0
+     },
+     "ppc_seller": {
+      "budget": 0.0
+     },
+     "social_buyer_leads": {
+      "budget": 0.0
+     },
+     "direct_connect": {
+      "budget": 0.0
+     }
+    },
+    "generated_leads": 116,
+    "distributed_leads": 32,
+    "avg_cost_per_distributed_lead_displayed": 0,
+    "avg_cost_per_distributed_lead_note": "Recorded as Ylopo displays it ($0). Looks inconsistent with $1,464.47 spent and 32 distributed leads; unconfirmed."
+   },
+   "campaigns": {
+    "listing_rockets": 73,
+    "ppc": 0,
+    "social_media": 0,
+    "custom": 0,
+    "remarketing": 4
+   },
+   "listing_rocket_statuses": {
+    "launch": 145,
+    "active": 0,
+    "pending_off_market": 15,
+    "inactive": 0
+   },
+   "brand_awareness": {
+    "people_saw_brand": {
+     "value": 830157,
+     "range_label": "Last 6 months"
+    },
+    "captured_for_remarketing": {
+     "value": 717,
+     "range_label": "Last 6 months"
+    },
+    "engaging_on_listing_alerts": {
+     "value": 10763,
+     "range_label": "Last 30 days"
+    },
+    "page_likes": {
+     "value": 30,
+     "range_label": "Last 30 days"
+    },
+    "leads_nurtured_in_cauldron": {
+     "value": 2027,
+     "range_label": null,
+     "range_note": "No range shown on dashboard"
+    }
+   },
+   "ppc_performance": {
+    "trailing_12_months_ppc_spend": null,
+    "note": "Dashboard states no PPC spend in the trailing 12 months and no campaign data for the current month.",
+    "no_ppc_spend_trailing_12m": true,
+    "no_campaign_data_current_month": true
+   },
+   "admin_users": 112
+  }
+ ]
+}

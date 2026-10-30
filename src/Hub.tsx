@@ -20,6 +20,7 @@ export const HUB_TILES: Tile[] = [
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", group: "Metrics", route: "fub-audit" },
   { id: "fello", label: "Fello", hint: "Felix AI to closing", group: "Metrics", route: "fello" },
   { id: "zillow", label: "Zillow Preferred", hint: "Tableau mirror · ratings & coaching", group: "Metrics", route: "zillow" },
+  { id: "ylopo", label: "Ylopo", hint: "Cost, leads & closings", group: "Metrics", route: "ylopo" },
   { id: "recruiting", label: "Recruiting Dynamics", hint: "Live recruiting funnel", group: "Metrics", route: "recruiting" },
   { id: "fub", label: "Follow Up Boss", hint: "agentbly1 CRM", group: "CRM & leads", href: "https://agentbly1.followupboss.com" },
   { id: "fub-zillow-rpt", label: "FUB Zillow Reporting", hint: "Kahla login", group: "CRM & leads", href: "https://agentbly1.followupboss.com/2/reporting/zillow-reporting" },

@@ -18,7 +18,7 @@ export function agentList(payload: any): string[] {
   const m = payload?.main; const src: string[] = m?.agent_list ?? Object.keys(m?.by_agent ?? {});
   return mergeStaffAgents(src.map(norm)).filter((n) => !isExcluded(n));
 }
-const METRICS_ROUTES = new Set(["team", "myt", "fub-audit", "fello", "zillow", "recruiting"]);
+const METRICS_ROUTES = new Set(["team", "myt", "fub-audit", "fello", "zillow", "recruiting", "ylopo"]);
 
 export default function Layout(props: { right?: ReactNode; payload: any; asOf?: string; metricsPending?: boolean }) {
   return <AgentProvider list={agentList(props.payload)}><Inner {...props} /></AgentProvider>;

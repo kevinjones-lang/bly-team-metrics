@@ -4,6 +4,7 @@ import FubAudit from "./FubTabs";
 import Recruiting from "./Recruiting";
 import Fello from "./Fello";
 import Zillow from "./Zillow";
+import Ylopo from "./Ylopo";
 import Myt from "./Myt";
 import Hub from "./Hub";
 import Referrals from "./referrals/Referrals";
@@ -34,5 +35,6 @@ export const NAV: NavItem[] = [
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", render: (p) => <FubAudit data={p?.fub_audit} /> },
   { id: "fello", label: "Fello", hint: "Felix AI to closing", render: (p) => <Fello data={p?.fello} /> },
   { id: "zillow", label: "Zillow", hint: "Tableau Preferred mirror", render: (p) => <Zillow data={p?.zillow} /> },
+  { id: "ylopo", label: "Ylopo", hint: "Cost and outcome totals", render: (p) => <Ylopo data={p?.ylopo} /> },
   { id: "recruiting", label: "Recruiting Dynamics", hint: "Agent recruiting funnel", render: (p) => <RecruitingGate data={p?.recruiting} /> },
 ];
