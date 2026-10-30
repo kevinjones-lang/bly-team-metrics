@@ -185,3 +185,6 @@ img, svg { max-width: 100%; }
 .hub-tile-hint { font-size: 13px; color: var(--muted); line-height: 1.35; }
 .hub-tile-ext { margin-top: auto; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); }
 .hub-section { margin-top: 8px; }
+
+.totrow td { font-weight: 600; background: var(--soft, #f3f1ec); border-bottom: 2px solid var(--gold, #c9a227); }
+th .sorti { opacity: .9; } th { cursor: pointer; user-select: none; }

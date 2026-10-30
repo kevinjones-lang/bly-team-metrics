@@ -59,7 +59,28 @@ export function Select(p: { label?: string; options: any[]; value: string; onCha
 export function Toggle(p: { label?: string; value: boolean; onChange: (v: boolean) => void }) {
   return (<label className="toggle"><input type="checkbox" checked={p.value} onChange={(e) => p.onChange(e.target.checked)} /><span className="knob" /><span>{p.label}</span></label>);
 }
-export function Table(p: { columns: string[]; rows: any[][]; align?: string[] }) {
+
+// Totals row (Kevin 2026-10-30): every table shows column totals at the top. Rate/average/date columns
+// (%, per-unit, median, avg, speed, rank, date) are not additive, so they show a dash instead of a sum.
+const NON_ADDITIVE = /%|\/|per |avg|average|median|mean|rate|speed|rank|#|score|date|year|time|age|days|min\b|conv|ratio/i;
+export function columnTotals(columns: string[], rows: any[][]): (string | null)[] {
+  return columns.map((h, k) => {
+    if (k === 0) return "Total";
+    const cells = rows.map((r) => r[k]);
+    const nums = cells.map(cellNum).filter((x): x is number => x != null);
+    if (!nums.length || nums.length < cells.filter((c) => cellText(c).trim() !== "" && cellText(c).trim() !== "—").length) return null;
+    const sample = cellText(cells.find((c) => cellNum(c) != null)).trim();
+    if (NON_ADDITIVE.test(h) || /%/.test(sample)) return "—";
+    const sum = nums.reduce((a, b) => a + b, 0);
+    const money = sample.startsWith("$") || sample.startsWith("-$");
+    const short = /\d[KM]\b/.test(sample);
+    if (short) return (money ? "$" : "") + (Math.abs(sum) >= 1e6 ? (sum / 1e6).toFixed(2) + "M" : (sum / 1e3).toFixed(1) + "K");
+    const dec = Math.max(0, ...cells.map((c) => (/\.(\d+)/.exec(cellText(c).replace(/[^\d.]/g, "")) || ["", ""])[1].length));
+    const v = sum.toLocaleString("en-US", { minimumFractionDigits: Math.min(dec, 2), maximumFractionDigits: Math.min(dec, 2) });
+    return money ? (sum < 0 ? "-$" + v.replace("-", "") : "$" + v) : v;
+  });
+}
+export function Table(p: { columns: string[]; rows: any[][]; align?: string[]; noTotals?: boolean }) {
   const [sort, setSort] = useState<[number, number]>([-1, 1]);
   const rows = useMemo(() => {
     if (sort[0] < 0) return p.rows;
@@ -68,10 +89,12 @@ export function Table(p: { columns: string[]; rows: any[][]; align?: string[] })
       if (x != null && y != null) return (x - y) * s; if (x != null) return -1; if (y != null) return 1;
       return cellText(a[c]).localeCompare(cellText(b[c])) * s; });
   }, [p.rows, sort]);
+  const tot = useMemo(() => columnTotals(p.columns, p.rows), [p.columns, p.rows]);
   const al = (k: number) => (p.align && p.align[k] === "end") || (!p.align && k > 0 && p.rows.length && cellNum(p.rows[0][k]) != null) ? "num" : "";
   return (<div className="tablewrap"><table>
     <thead><tr>{p.columns.map((c, k) => <th key={k} className={al(k)} onClick={() => setSort(sort[0] === k ? (sort[1] === -1 ? [k, 1] : [-1, 1]) : [k, -1])} title="Sort">
-      {c}<span className="sorti">{sort[0] === k ? (sort[1] === -1 ? " ▼" : " ▲") : ""}</span></th>)}</tr></thead>
+      {c}<span className="sorti">{sort[0] === k ? (sort[1] === -1 ? " ▼" : " ▲") : " ↕"}</span></th>)}</tr>
+      {!p.noTotals && p.rows.length > 1 && tot.some((t, k) => k > 0 && t && t !== "—") ? <tr className="totrow">{tot.map((t, k) => <td key={k} className={al(k)}>{t ?? ""}</td>)}</tr> : null}</thead>
     <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c: any, k: number) => <td key={k} className={al(k)} style={{ color: c && typeof c === "object" && "tone" in c ? toneColor(c.tone) : undefined }}>
       {c && typeof c === "object" && "text" in c && !("$$typeof" in c) ? c.text : c}</td>)}</tr>)}</tbody>
   </table></div>);
