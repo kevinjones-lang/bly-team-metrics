@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useAgent, sameAgent, AgentBanner, usePersist } from "./agent";
 import "./fubaudit.css";
 import "./zillow.css";
+import { SortableAgentTable, TotalsCheck, computeTotals, type Col } from "./zillowTable";
 
 type Rating = "High" | "Fair" | "Low" | null | undefined;
 type TabId = "performance" | "team" | "funnel" | "agents" | "details" | "glossary" | "top10";
@@ -491,38 +492,12 @@ function FunnelTab({ data }: { data: any }) {
           <h3 className="serif" style={{ fontSize: 18, marginTop: 16 }}>ZHL opportunities (agent counts)</h3>
           <p className="zl-cap">{block.opportunities.rows.length} agents · counts only, no consumer details.{block.opportunities.rows_complete === false ? " Roster incomplete in this pull." : ""}</p>
           <OppsCheck o={block.opportunities} />
-          <div className="tablewrap">
-            <table className="zl-table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th className="r">Elig. PA</th>
-                  <th className="r">Not transferred</th>
-                  <th className="r">Not engaged</th>
-                  <th className="r">Engaged no CP</th>
-                  <th className="r">CP not PA</th>
-                  <th className="r">PA not locked</th>
-                  <th className="r">Locked not funded</th>
-                  <th className="r">Funded</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(block.opportunities.grand_total ? [block.opportunities.grand_total, ...block.opportunities.rows] : block.opportunities.rows).map((r: any) => (
-                  <tr key={r.agent} style={r.agent === "Grand Total" ? { fontWeight: 600 } : undefined}>
-                    <td>{r.agent}</td>
-                    <td className="r">{num(r.eligible_preapprovals)}</td>
-                    <td className="r">{num(r.eligible_transfers_not_transferred)}</td>
-                    <td className="r">{num(r.transfers_not_engaged)}</td>
-                    <td className="r">{num(r.engaged_transfers_no_credit_pulls)}</td>
-                    <td className="r">{num(r.credit_pulls_not_preapproved)}</td>
-                    <td className="r">{num(r.preapproved_not_locked)}</td>
-                    <td className="r">{num(r.locked_loans_not_funded)}</td>
-                    <td className="r">{num(r.funded_loans)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SortableAgentTable
+            cols={OPP_COLS}
+            rows={block.opportunities.rows}
+            pinned={block.opportunities.grand_total ? [{ ...block.opportunities.grand_total, agent: block.opportunities.grand_total.agent || "Grand Total" }] : undefined}
+            grandTotal={block.opportunities.grand_total}
+          />
         </>
       ) : null}
       {months.length ? <p className="zl-cap">Monthly columns {months[0]}–{months[months.length - 1]} plus Grand Total.</p> : null}
@@ -535,6 +510,11 @@ const OPP_LABEL: Record<string, string> = {
   engaged_transfers_no_credit_pulls: "Engaged no CP", credit_pulls_not_preapproved: "CP not PA", preapproved_not_locked: "PA not locked",
   locked_loans_not_funded: "Locked not funded", funded_loans: "Funded",
 };
+
+const OPP_COLS: Col[] = [
+  { key: "agent", label: "Agent", kind: "text" },
+  ...Object.entries(OPP_LABEL).map(([key, label]) => ({ key, label, kind: "count" as const })),
+];
 
 // Agent rows vs Tableau grand total, per column. Shows any gap and the blank cell(s) it can sit in; never fills a value.
 function OppsCheck({ o }: { o: any }) {
@@ -560,6 +540,86 @@ function OppsCheck({ o }: { o: any }) {
   );
 }
 
+const SUMMARY_COLS: Col[] = [
+  { key: "agent", label: "Agent", kind: "text" },
+  { key: "overall_performance", label: "Overall", kind: "rating" },
+  { key: "zhl_preapproval_target_rating", label: "ZHL", kind: "rating" },
+  { key: "pickup_rate_l90d", label: "Pickup", kind: "rate" },
+  { key: "total_buyer_l90d", label: "Buyer", kind: "count" },
+  { key: "eligible_met_withs_l90d", label: "Met-with", kind: "count" },
+  { key: "eligible_preapprovals_l90d", label: "Pre-appr", kind: "count" },
+  { key: "total_closed_trx_l90d", label: "Closed", kind: "count" },
+  { key: "pending_trx_l90d", label: "Pending", kind: "count" },
+  { key: "total_funded_l90d", label: "Funded", kind: "count" },
+  { key: "predicted_cvr", label: "Pred. CVR", kind: "rate" },
+  { key: "insights", label: "Insights", kind: "text", style: { whiteSpace: "normal", minWidth: 140, maxWidth: 220 } },
+];
+
+const BUYER_COLS: Col[] = [
+  { key: "agent", label: "Agent", kind: "text" },
+  { key: "pickups", label: "Pickups", kind: "count" },
+  { key: "pickup_rate", label: "Pickup %", kind: "rate" },
+  { key: "buyer_connections", label: "Buyer", kind: "count" },
+  { key: "appointments", label: "Appts", kind: "count" },
+  { key: "appointment_rate", label: "Appt %", kind: "rate" },
+  { key: "meetings", label: "Met", kind: "count" },
+  { key: "offers", label: "Offers", kind: "count" },
+  { key: "buyer_pending_closed", label: "Pend+Closed", kind: "count" },
+  { key: "raw_cvr", label: "Raw CVR", kind: "rate" },
+  { key: "avg_predicted_cvr", label: "Pred. CVR", kind: "rate" },
+];
+
+// ZHL grand_total uses short keys in the normalized payload and row keys in the raw pull; accept both.
+const ZHL_COLS: Col[] = [
+  { key: "agent", label: "Agent", kind: "text" },
+  { key: "preapproval_rating", label: "PA rating", kind: "rating" },
+  { key: "preferred_buyer_connections", label: "Preferred", kind: "count" },
+  { key: "eligible_met_with_connections", label: "Elig. met", kind: "count", gt: ["eligible_met_with_connections", "eligible_met"] },
+  { key: "zhl_total_transfers", label: "Transfers", kind: "count", gt: ["zhl_total_transfers", "total_transfers"] },
+  { key: "overall_transfer_rate", label: "Xfer %", kind: "rate" },
+  { key: "connected_with_lo", label: "Connected LO", kind: "count" },
+  { key: "credit_pulls", label: "Credit pulls", kind: "count" },
+  { key: "zhl_preapprovals", label: "Pre-appr", kind: "count", gt: ["zhl_preapprovals", "preapprovals"] },
+  { key: "preapproval_target_monthly", label: "Target", kind: "count" },
+  { key: "funded_loans", label: "Funded", kind: "count" },
+];
+
+// Seller board columns come from the payload (labels + keys). Rates are any "...Rate(s)..." column; the rest are counts,
+// except the truncated header, whose meaning is unknown, so it is treated as text and never totalled.
+function sellerCols(block: any): Col[] {
+  const keys: string[] = block?.column_keys || [];
+  const labels: string[] = block?.columns || [];
+  return keys.map((key, i) => {
+    const label = labels[i] || key;
+    if (key === "agent") return { key, label: "Agent", kind: "text" as const };
+    if (key === "con_truncated_header") return { key, label, kind: "text" as const };
+    if (/rate/i.test(key)) {
+      return key === "live_transfers_fail_rate"
+        ? { key, label, kind: "rate" as const, ratio: ["failed_live_transfers", "offered_live_transfers"] as [string, string] }
+        : { key, label, kind: "rate" as const };
+    }
+    return { key, label, kind: "count" as const };
+  });
+}
+
+function AgentSellerBoard({ block, focus }: { block: any; focus: string | null }) {
+  const cols = useMemo(() => sellerCols(block), [block]);
+  if (!block) return null;
+  const rows: any[] = block.rows || [];
+  const g = block.grand_total || {};
+  return (
+    <>
+      <div className="zl-banner"><b>No data in Zillow Reporting yet.</b> Seller Connections are blank for every agent in Tableau (0 offered / 0 failed live transfers; all other columns empty).</div>
+      {rows.length && cols.length ? (
+        <>
+          <p className="zl-cap" style={{ marginTop: 12 }}>{block.date_window || "Last 3 months"} · {rows.length} agents · <TotalsCheck cols={cols} totals={computeTotals(cols, rows, g)} />.</p>
+          <SortableAgentTable cols={cols} rows={rows} grandTotal={g} rowStyle={(a) => (focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined)} />
+        </>
+      ) : null}
+    </>
+  );
+}
+
 function AgentsTab({ data, focus }: { data: any; focus: string | null }) {
   const rows: any[] = data.agents?.agents || [];
   const gt = data.agents?.grand_total || {};
@@ -581,6 +641,7 @@ function AgentsTab({ data, focus }: { data: any; focus: string | null }) {
       return (b.predicted_cvr ?? -1) - (a.predicted_cvr ?? -1);
     });
   }, [rows]);
+  const summaryTotals = useMemo(() => computeTotals(SUMMARY_COLS, rows, gt), [rows, gt]);
 
   return (
     <section className="section">
@@ -599,160 +660,51 @@ function AgentsTab({ data, focus }: { data: any; focus: string | null }) {
             <div className="zl-stat"><div className="k">Closed / pending</div><div className="v serif">{num(gt.total_closed_trx_l90d)} / {num(gt.pending_trx_l90d)}</div></div>
             <div className="zl-stat"><div className="k">Funded</div><div className="v serif">{num(gt.total_funded_l90d)}</div></div>
           </div>
-          <div className="tablewrap">
-            <table className="zl-table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Overall</th>
-                  <th>ZHL</th>
-                  <th className="r">Pickup</th>
-                  <th className="r">Buyer</th>
-                  <th className="r">Met-with</th>
-                  <th className="r">Pre-appr</th>
-                  <th className="r">Closed</th>
-                  <th className="r">Pending</th>
-                  <th className="r">Funded</th>
-                  <th className="r">Pred. CVR</th>
-                  <th>Insights</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((a) => {
-                  const on = focus && sameAgent(a.agent, focus);
-                  return (
-                    <tr key={a.agent} style={on ? { background: "#EAF2FA" } : undefined}>
-                      <td>{a.agent}</td>
-                      <td>{a.overall_performance ? <span className={`zl-pill ${a.overall_performance}`}>{a.overall_performance}</span> : "—"}</td>
-                      <td>{a.zhl_preapproval_target_rating ? <span className={`zl-pill ${a.zhl_preapproval_target_rating}`}>{a.zhl_preapproval_target_rating}</span> : "—"}</td>
-                      <td className="r">{pct(a.pickup_rate_l90d)}</td>
-                      <td className="r">{num(a.total_buyer_l90d)}</td>
-                      <td className="r">{num(a.eligible_met_withs_l90d)}</td>
-                      <td className="r">{num(a.eligible_preapprovals_l90d)}</td>
-                      <td className="r">{num(a.total_closed_trx_l90d)}</td>
-                      <td className="r">{num(a.pending_trx_l90d)}</td>
-                      <td className="r">{num(a.total_funded_l90d)}</td>
-                      <td className="r">{pct(a.predicted_cvr)}</td>
-                      <td style={{ whiteSpace: "normal", minWidth: 140, maxWidth: 220 }}>{a.insights || "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <p className="zl-cap"><TotalsCheck cols={SUMMARY_COLS} totals={summaryTotals} />.</p>
+          <SortableAgentTable cols={SUMMARY_COLS} rows={sorted} totals={summaryTotals} rowStyle={(a) => (focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined)} />
         </>
       ) : null}
       {active === "buyer_connections" ? <AgentBuyerBoard block={byCat.buyer_connections} focus={focus} /> : null}
       {active === "zhl" ? <AgentZhlBoard block={byCat.zhl} focus={focus} /> : null}
-      {active === "seller_connections" ? (
-        <div className="zl-banner"><b>No data in Zillow Reporting yet.</b> Seller Connections are blank for every agent in Tableau (0 offered / 0 failed live transfers; all other columns empty).</div>
-      ) : null}
+      {active === "seller_connections" ? <AgentSellerBoard block={byCat.seller_connections} focus={focus} /> : null}
     </section>
   );
 }
 
 function AgentBuyerBoard({ block, focus }: { block: any; focus: string | null }) {
   if (!block) return null;
+  const COLS = BUYER_COLS;
   const g = block.grand_total || {};
   const rows: any[] = block.rows || [];
   return (
     <>
-      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents · {block.column_sum_check || ""}.</p>
+      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents{block.column_sum_check ? ` · ${block.column_sum_check}` : ""} · <TotalsCheck cols={COLS} totals={computeTotals(COLS, rows, g)} />.</p>
       <div className="zl-myscore-grid" style={{ margin: "12px 0" }}>
         <div className="zl-stat"><div className="k">Buyer cxns</div><div className="v serif">{num(g.buyer_connections)}</div></div>
         <div className="zl-stat"><div className="k">Pickup rate</div><div className="v serif">{pct(g.pickup_rate)}</div></div>
         <div className="zl-stat"><div className="k">Appt rate</div><div className="v serif">{pct(g.appointment_rate)}</div></div>
         <div className="zl-stat"><div className="k">Raw CVR</div><div className="v serif">{pct(g.raw_cvr)}</div></div>
       </div>
-      <div className="tablewrap">
-        <table className="zl-table">
-          <thead>
-            <tr>
-              <th>Agent</th>
-              <th className="r">Pickups</th>
-              <th className="r">Pickup %</th>
-              <th className="r">Buyer</th>
-              <th className="r">Appts</th>
-              <th className="r">Appt %</th>
-              <th className="r">Met</th>
-              <th className="r">Offers</th>
-              <th className="r">Pend+Closed</th>
-              <th className="r">Raw CVR</th>
-              <th className="r">Pred. CVR</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((a: any) => (
-              <tr key={a.agent} style={focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined}>
-                <td>{a.agent}</td>
-                <td className="r">{num(a.pickups)}</td>
-                <td className="r">{pct(a.pickup_rate)}</td>
-                <td className="r">{num(a.buyer_connections)}</td>
-                <td className="r">{num(a.appointments)}</td>
-                <td className="r">{pct(a.appointment_rate)}</td>
-                <td className="r">{num(a.meetings)}</td>
-                <td className="r">{num(a.offers)}</td>
-                <td className="r">{num(a.buyer_pending_closed)}</td>
-                <td className="r">{pct(a.raw_cvr)}</td>
-                <td className="r">{pct(a.avg_predicted_cvr)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <SortableAgentTable cols={BUYER_COLS} rows={rows} grandTotal={g} rowStyle={(a) => (focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined)} />
     </>
   );
 }
 
 function AgentZhlBoard({ block, focus }: { block: any; focus: string | null }) {
   if (!block) return null;
+  const COLS = ZHL_COLS;
   const g = block.grand_total || {};
   const rows: any[] = block.rows || [];
   return (
     <>
-      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents · {block.column_sum_check || ""}.</p>
+      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents{block.column_sum_check ? ` · ${block.column_sum_check}` : ""} · <TotalsCheck cols={COLS} totals={computeTotals(COLS, rows, g)} />.</p>
       <div className="zl-myscore-grid" style={{ margin: "12px 0" }}>
         <div className="zl-stat"><div className="k">Preferred buyer</div><div className="v serif">{num(g.preferred_buyer_connections)}</div></div>
         <div className="zl-stat"><div className="k">Transfers</div><div className="v serif">{num(g.total_transfers)}</div></div>
         <div className="zl-stat"><div className="k">Transfer rate</div><div className="v serif">{pct(g.overall_transfer_rate)}</div></div>
         <div className="zl-stat"><div className="k">Pre-approvals</div><div className="v serif">{num(g.preapprovals)}</div></div>
       </div>
-      <div className="tablewrap">
-        <table className="zl-table">
-          <thead>
-            <tr>
-              <th>Agent</th>
-              <th>PA rating</th>
-              <th className="r">Preferred</th>
-              <th className="r">Elig. met</th>
-              <th className="r">Transfers</th>
-              <th className="r">Xfer %</th>
-              <th className="r">Connected LO</th>
-              <th className="r">Credit pulls</th>
-              <th className="r">Pre-appr</th>
-              <th className="r">Target</th>
-              <th className="r">Funded</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((a: any) => (
-              <tr key={a.agent} style={focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined}>
-                <td>{a.agent}</td>
-                <td>{a.preapproval_rating ? <span className={`zl-pill ${a.preapproval_rating}`}>{a.preapproval_rating}</span> : "—"}</td>
-                <td className="r">{num(a.preferred_buyer_connections)}</td>
-                <td className="r">{num(a.eligible_met_with_connections)}</td>
-                <td className="r">{num(a.zhl_total_transfers)}</td>
-                <td className="r">{pct(a.overall_transfer_rate)}</td>
-                <td className="r">{num(a.connected_with_lo)}</td>
-                <td className="r">{num(a.credit_pulls)}</td>
-                <td className="r">{num(a.zhl_preapprovals)}</td>
-                <td className="r">{num(a.preapproval_target_monthly)}</td>
-                <td className="r">{num(a.funded_loans)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <SortableAgentTable cols={ZHL_COLS} rows={rows} grandTotal={g} rowStyle={(a) => (focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined)} />
     </>
   );
 }

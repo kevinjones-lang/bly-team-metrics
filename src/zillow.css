@@ -75,3 +75,14 @@
 .zl-gloss-item b { display: block; font-size: 14px; color: #12151C; }
 .zl-gloss-item .cat { font-size: 11px; color: #00519B; text-transform: uppercase; letter-spacing: .04em; margin: 2px 0 4px; }
 .zl-gloss-item p { margin: 0; font-size: 13px; color: #3a3a3a; line-height: 1.45; }
+
+/* Sortable per-agent tables + pinned Total row */
+.zillow table.zl-sortable th { padding: 0; }
+.zillow .zl-sortbtn { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 4px; width: 100%; min-height: 40px; padding: 8px 10px; cursor: pointer; font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; touch-action: manipulation; -webkit-tap-highlight-color: rgba(0,81,155,.12); }
+.zillow th.r .zl-sortbtn { justify-content: flex-end; }
+.zillow .zl-sortbtn i { font-style: normal; font-size: 10px; opacity: .35; }
+.zillow .zl-sortbtn.on { color: #00519B; }
+.zillow .zl-sortbtn.on i { opacity: 1; }
+.zillow .zl-sortbtn:focus-visible { outline: 2px solid #00519B; outline-offset: -2px; }
+.zillow table.zl-table tr.zl-total td { font-weight: 600; background: #F8F6F0; border-bottom: 2px solid #D6D0C2; }
+.zillow .zl-total-bad { color: #8A1F1F; }
