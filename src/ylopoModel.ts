@@ -5,10 +5,31 @@ export type DateRange = { from?: string | null; to?: string | null };
 export type CostPer = {
   all_in?: number | null;
   ad_spend_only?: number | null;
+  all_in_net_of_credits?: number | null;
   denominator?: string | null;
+  months?: string[] | null;
   closings_unit?: string | null;
   dashboard_spend_basis_unconfirmed?: number | null;
   note?: string | null;
+  pdf_only_invoice_basis_unconfirmed?: { all_in?: number | null; ad_spend_only?: number | null } | null;
+};
+
+export type InvoiceRef = {
+  invoice?: string | null;
+  date?: string | null;
+  type?: string | null;
+  status?: string | null;
+  total?: number | null;
+  ad_spend?: number | null;
+  seen_in?: string[] | null;
+  included_because?: string | null;
+};
+
+export type UnconfirmedInvoices = {
+  label?: string | null;
+  invoices?: InvoiceRef[] | null;
+  all_in_cost?: number | null;
+  ad_spend?: number | null;
 };
 
 export type InvoiceBlock = {
@@ -17,6 +38,16 @@ export type InvoiceBlock = {
   ad_spend?: number | null;
   ad_spend_components?: Record<string, number | null> | null;
   category_breakdown?: Record<string, number | null> | null;
+  invoice_source?: string | null;
+  invoice_sources_seen?: string[] | null;
+  invoices_by_source?: Record<string, number | null> | null;
+  gross_invoiced?: number | null;
+  credits?: number | null;
+  credit_memo_count?: number | null;
+  credits_by_category?: Record<string, number | null> | null;
+  net_of_credits?: number | null;
+  credits_status?: string | null;
+  confirmed_pdf_only_invoices?: string[] | null;
 };
 
 export type FubMonth = {
@@ -56,6 +87,7 @@ export type HistoryRow = {
   status?: string | null;
   recorded_at?: string | null;
   invoices?: InvoiceBlock | null;
+  invoices_unconfirmed_pdf_only?: UnconfirmedInvoices | null;
   fub?: FubMonth | null;
   ylopo_dashboard?: DashboardMonth | null;
   cost_per?: { lead?: CostPer | null; appointment?: CostPer | null; closing?: CostPer | null } | null;
@@ -96,6 +128,15 @@ export type DailySnapshot = {
   admin_users?: number | null;
 };
 
+export type InvoiceReconciliation = {
+  invoice_count_by_source?: Record<string, number | null> | null;
+  total_by_source?: Record<string, number | null> | null;
+  amount_mismatches?: unknown[] | null;
+  category_mismatches?: unknown[] | null;
+  pdf_only_excluded?: InvoiceRef[] | null;
+  pdf_only_included?: InvoiceRef[] | null;
+};
+
 export type FubWindow = {
   from?: string | null;
   to?: string | null;
@@ -112,6 +153,7 @@ export type YlopoData = {
   assumptions?: Record<string, string | null> | null;
   history_policy?: string | null;
   agents_note?: string | null;
+  invoice_reconciliation?: InvoiceReconciliation | null;
   totals?: {
     ytd?: {
       year?: number | null;
@@ -121,6 +163,11 @@ export type YlopoData = {
       ad_spend?: number | null;
       category_breakdown?: Record<string, number | null> | null;
       invoice_count?: number | null;
+      gross_invoiced?: number | null;
+      credits?: number | null;
+      net_of_credits?: number | null;
+      credits_status?: string | null;
+      invoice_source_by_month?: Record<string, string | null> | null;
       fub_new_leads?: number | null;
       fub_appointments_set?: number | null;
       fub_closings?: number | null;
@@ -135,14 +182,17 @@ export type YlopoData = {
       fub_appointments_set?: number | null;
       fub_closings?: number | null;
       ylopo_distributed_leads?: number | null;
+      net_of_credits?: number | null;
       lead?: CostPer | null;
       appointment?: CostPer | null;
       closing?: CostPer | null;
     } | null;
+    credits_note?: string | null;
     current_month?: {
       period?: string | null;
       status?: string | null;
       invoices?: InvoiceBlock | null;
+      invoices_unconfirmed_pdf_only?: UnconfirmedInvoices | null;
       fub?: FubMonth | null;
       ylopo_dashboard?: DashboardMonth | null;
       cost_per?: { lead?: CostPer | null; appointment?: CostPer | null; closing?: CostPer | null } | null;
@@ -169,6 +219,8 @@ const FLAG_NOTES: Record<string, string> = {
   closings_unit_unconfirmed: "Closings units are unconfirmed vs eXp units.",
   ylopo_displayed_avg_cost_per_distributed_lead_0_inconsistent_with_spend:
     "Ylopo's displayed average cost per distributed lead is $0, which does not match the spend.",
+  credits_unknown_if_refunded_or_applied: "Unknown whether credits were refunded or applied.",
+  pdf_only_invoice_unconfirmed_not_counted: "A PDF-only invoice is unconfirmed and not counted.",
 };
 
 const DENOMS: Record<string, string> = {
@@ -242,6 +294,66 @@ export function closingsUnitNote(unit: string | null | undefined): string | null
 export function denomLabel(d: string | null | undefined): string {
   if (!d) return "No data";
   return DENOMS[d] ?? d.replace(/_/g, " ");
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  outlook_export: "Outlook export",
+  pdf: "Drive PDF",
+  sheet: "sheet",
+};
+
+export function sourceLabel(source: string | null | undefined): string {
+  if (!source) return "—";
+  return source.split(/\s*(?:,|\+|\/)\s*/).map((part) => SOURCE_LABEL[part.trim()] ?? part.trim().replace(/_/g, " ")).join(" · ");
+}
+
+export function monthSource(invoices: InvoiceBlock | null | undefined): string | null {
+  if (!invoices?.invoice_source) return null;
+  const base = sourceLabel(invoices.invoice_source);
+  return invoices.confirmed_pdf_only_invoices?.length ? `${base} · confirmed` : base;
+}
+
+export function reconciliationNote(rec: InvoiceReconciliation | null | undefined): string | null {
+  if (!rec) return null;
+  const order = ["outlook_export", "pdf", "sheet"];
+  const keys = [...new Set([...order, ...Object.keys(rec.invoice_count_by_source ?? {}), ...Object.keys(rec.total_by_source ?? {})])];
+  const parts = keys.filter((src) => isNum(rec.invoice_count_by_source?.[src]) || isNum(rec.total_by_source?.[src])).map((src) => {
+    const count = rec.invoice_count_by_source?.[src];
+    const total = rec.total_by_source?.[src];
+    const bits = [sourceLabel(src)];
+    if (isNum(count)) bits.push(`${countText(count)} invoices`);
+    if (isNum(total)) bits.push(moneyText(total));
+    return bits.join(", ");
+  });
+  const mismatches = (rec.amount_mismatches?.length ?? 0) + (rec.category_mismatches?.length ?? 0);
+  const agree = mismatches === 0
+    ? "Amounts agree where an invoice is in more than one source."
+    : `${countText(mismatches)} amount or category mismatches.`;
+  const excluded = (rec.pdf_only_excluded ?? []).map((inv) => {
+    const where = (inv.seen_in ?? []).map((src) => sourceLabel(src)).join(", ");
+    return `${inv.invoice ?? "Invoice"}${where ? `, ${where}` : ""}${isNum(inv.total) ? `, ${moneyText(inv.total)}` : ""} is unconfirmed and not counted.`;
+  });
+  const included = (rec.pdf_only_included ?? []).map((inv) => {
+    const where = (inv.seen_in ?? []).map((src) => sourceLabel(src)).join(", ");
+    return `${inv.invoice ?? "Invoice"} is counted${where ? ` from ${where}` : ""}${inv.included_because ? ` (${inv.included_because})` : ""}.`;
+  });
+  const body = [parts.length ? `${parts.join(" · ")}.` : "", agree, ...included, ...excluded].filter(Boolean).join(" ");
+  return body || null;
+}
+
+/** Uncounted invoices on the rows already chosen for display. Older revisions are ignored. */
+export function uncountedNotes(rows: readonly HistoryRow[]): string[] {
+  const notes: string[] = [];
+  for (const row of rows) {
+    const block = row.invoices_unconfirmed_pdf_only;
+    if (!block?.invoices?.length) continue;
+    for (const inv of block.invoices) {
+      const where = (inv.seen_in ?? []).map((src) => sourceLabel(src)).join(", ");
+      const bits = [inv.invoice, inv.date ?? row.period, where || null, isNum(inv.total) ? moneyText(inv.total) : null].filter((bit): bit is string => Boolean(bit));
+      notes.push(`Not counted · ${bits.join(" · ")}. ${block.label ?? "Unconfirmed and not included in the totals."}`);
+    }
+  }
+  return notes;
 }
 
 export function latestBy<T>(

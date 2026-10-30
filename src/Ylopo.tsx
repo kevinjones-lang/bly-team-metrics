@@ -13,15 +13,19 @@ import {
   moneyText,
   monthList,
   monthLong,
+  monthSource,
   monthTick,
   pctText,
   rangeText,
   readYlopo,
+  reconciliationNote,
   stamp,
+  uncountedNotes,
   words,
   type CostPer,
   type DailySnapshot,
   type HistoryRow,
+  type InvoiceReconciliation,
   type YlopoData,
 } from "./ylopoModel";
 
@@ -111,7 +115,7 @@ function PairCard({
     <div className="yp-card">
       <div className="yp-k">{title}</div>
       <div className="yp-period">{period}</div>
-      <div className="yp-pair">
+      <div className={"yp-pair" + (isNum(pair?.all_in_net_of_credits) ? " cols-3" : "")}>
         <div>
           <div className="yp-sub">All-in</div>
           <div className="yp-v serif">{isNum(pair?.all_in) ? moneyText(pair.all_in) : "No data"}</div>
@@ -120,6 +124,12 @@ function PairCard({
           <div className="yp-sub">Ad spend only</div>
           <div className="yp-v serif">{isNum(pair?.ad_spend_only) ? moneyText(pair.ad_spend_only) : "No data"}</div>
         </div>
+        {isNum(pair?.all_in_net_of_credits) ? (
+          <div>
+            <div className="yp-sub">All-in net of credits</div>
+            <div className="yp-v serif">{moneyText(pair.all_in_net_of_credits)}</div>
+          </div>
+        ) : null}
       </div>
       <div className="yp-meta">
         Denominator: {denomLabel(pair?.denominator)}
@@ -184,16 +194,24 @@ function Costs({ data }: { data: YlopoData }) {
   const invoices = monthList(ytd?.invoice_months_covered);
   const fubRange = rangeText(ytd?.fub_range) ?? "No data";
   const matchedPeriod = monthList(matched?.months);
+  const leadPeriod = matched?.lead?.months?.length ? monthList(matched.lead.months) : matchedPeriod;
   const dash = cur?.ylopo_dashboard;
   const curPeriod = cur ? labeledRange(dash?.range_label, dash?.range, monthLong(cur.period)) : "No data";
   const leadUnconfirmed = cur?.cost_per?.lead?.dashboard_spend_basis_unconfirmed;
   const closingNote = closingsUnitNote(matched?.closing?.closings_unit ?? ytd?.closings_unit);
+  const gross = cur?.invoices ? (cur.invoices.gross_invoiced ?? cur.invoices.all_in_cost) : undefined;
+  const shown = latestHistory(data.history);
   return (
     <section className="section">
       <h2 className="serif">Cost</h2>
-      <p className="yp-cap">YTD all-in cost and ad spend cover the invoice months. FUB counts below use the FUB range, which runs past the last invoice month.</p>
+      <p className="yp-cap">Invoiced gross is the all-in total before credit memos. FUB counts below use the FUB range, which can run past the last invoice month.</p>
+      <div className="yp-grid cols-3">
+        <MoneyCard k="Invoiced gross" period={invoices} value={ytd?.gross_invoiced ?? ytd?.all_in_cost} hint={isNum(ytd?.invoice_count) ? `${countText(ytd.invoice_count)} invoices` : null} />
+        <MoneyCard k="Credit memos" period={invoices} value={ytd?.credits} />
+        <MoneyCard k="Net of credits" period={invoices} value={ytd?.net_of_credits} />
+      </div>
+      <Notes lines={[data.totals?.credits_note ?? (ytd?.credits_status === "unknown_if_refunded_or_applied" ? "Unknown whether credits were refunded or applied." : null)]} />
       <div className="yp-grid cols-2">
-        <MoneyCard k="YTD all-in Ylopo cost" period={invoices} value={ytd?.all_in_cost} hint={isNum(ytd?.invoice_count) ? `${countText(ytd.invoice_count)} invoices` : null} />
         <MoneyCard k="YTD ad spend" period={invoices} value={ytd?.ad_spend} hint="Digital Advertising + Google LSA Spend" />
       </div>
       <div className="yp-grid cols-3">
@@ -204,14 +222,16 @@ function Costs({ data }: { data: YlopoData }) {
       <h3 className="serif yp-h3">Cost per outcome</h3>
       <p className="yp-cap">{matched?.note || "Cost and counts over the months that have invoices."}</p>
       <div className="yp-grid cols-3">
-        <PairCard title="Cost per lead" period={matchedPeriod} pair={matched?.lead} count={matched?.ylopo_distributed_leads} />
+        <PairCard title="Cost per lead" period={leadPeriod} pair={matched?.lead} count={matched?.ylopo_distributed_leads} />
         <PairCard title="Cost per appointment" period={matchedPeriod} pair={matched?.appointment} count={matched?.fub_appointments_set} />
         <PairCard title="Cost per closing" period={matchedPeriod} pair={matched?.closing} count={matched?.fub_closings} notes={[closingNote]} />
       </div>
       <h3 className="serif yp-h3">{monthLong(cur?.period)}</h3>
       <p className="yp-cap">{cur?.status === "partial" ? "Month in progress." : cur?.status === "complete" ? "Month complete." : "No data"}</p>
-      <div className="yp-grid cols-2">
-        <MoneyCard k="All-in cost" period={monthLong(cur?.period)} value={cur?.invoices?.all_in_cost} />
+      <div className="yp-grid cols-4">
+        <MoneyCard k="Invoiced gross" period={monthLong(cur?.period)} value={gross} />
+        <MoneyCard k="Credit memos" period={monthLong(cur?.period)} value={cur?.invoices ? cur.invoices.credits : undefined} />
+        <MoneyCard k="Net of credits" period={monthLong(cur?.period)} value={cur?.invoices ? cur.invoices.net_of_credits : undefined} />
         <MoneyCard k="Ad spend" period={monthLong(cur?.period)} value={cur?.invoices?.ad_spend} />
       </div>
       <div className="yp-grid cols-3">
@@ -220,12 +240,13 @@ function Costs({ data }: { data: YlopoData }) {
           period={curPeriod}
           pair={cur?.cost_per?.lead}
           count={dash?.distributed_leads}
-          notes={[isNum(leadUnconfirmed) ? `${monthLong(cur?.period)} cost per lead is unconfirmed. The figure above divides Ylopo's displayed month-to-date Total Spent by distributed leads. It is not invoice-based.` : null]}
+          notes={[isNum(leadUnconfirmed) ? `${monthLong(cur?.period)} dashboard cost per lead, ${moneyText(leadUnconfirmed)}, is unconfirmed. It divides Ylopo's displayed month-to-date Total Spent by distributed leads and is not the invoice-based figure.` : null]}
         />
         <PairCard title="Cost per appointment" period={rangeText(cur?.fub?.range) ?? monthLong(cur?.period)} pair={cur?.cost_per?.appointment} count={cur?.fub?.appointments_set} />
         <PairCard title="Cost per closing" period={rangeText(cur?.fub?.range) ?? monthLong(cur?.period)} pair={cur?.cost_per?.closing} count={cur?.fub?.closings} notes={[closingsUnitNote(cur?.cost_per?.closing?.closings_unit)]} />
       </div>
       <Notes lines={(cur?.flags ?? []).map(flagNote)} />
+      <Notes lines={uncountedNotes(shown)} />
       <h3 className="serif yp-h3">FUB windows</h3>
       <div className="yp-grid cols-3">
         {FUB_WINDOWS.map((w) => {
@@ -405,7 +426,7 @@ function axisTick(v: number, money: boolean): string {
   return money ? `$${body}` : body;
 }
 
-function Trends({ rows, policy }: { rows: HistoryRow[]; policy?: string | null }) {
+function Trends({ rows, policy, reconciliation }: { rows: HistoryRow[]; policy?: string | null; reconciliation?: InvoiceReconciliation | null }) {
   const labels = rows.map((r) => `${monthTick(String(r.period ?? ""))}${r.status === "partial" ? "*" : ""}`);
   const num = (pick: (row: HistoryRow) => unknown) => rows.map((row) => (isNum(pick(row)) ? pick(row) as number : null));
   return (
@@ -417,6 +438,7 @@ function Trends({ rows, policy }: { rows: HistoryRow[]; policy?: string | null }
         <>
           <GroupedBars
             title="Monthly all-in cost and ad spend"
+            caption="All-in is invoiced gross, before credit memos."
             labels={labels}
             money
             format={(v) => moneyText(v)}
@@ -446,6 +468,7 @@ function Trends({ rows, policy }: { rows: HistoryRow[]; policy?: string | null }
               series={[
                 { name: "All-in", color: NAVY, values: num((r) => r.cost_per?.appointment?.all_in) },
                 { name: "Ad spend", color: MIST, values: num((r) => r.cost_per?.appointment?.ad_spend_only) },
+                { name: "All-in net of credits", color: "#8A5A00", values: num((r) => r.cost_per?.appointment?.all_in_net_of_credits) },
               ]}
             />
             <GroupedBars
@@ -456,19 +479,23 @@ function Trends({ rows, policy }: { rows: HistoryRow[]; policy?: string | null }
               series={[
                 { name: "All-in", color: GREEN, values: num((r) => r.cost_per?.closing?.all_in) },
                 { name: "Ad spend", color: GOLD, values: num((r) => r.cost_per?.closing?.ad_spend_only) },
+                { name: "All-in net of credits", color: "#8A5A00", values: num((r) => r.cost_per?.closing?.all_in_net_of_credits) },
               ]}
             />
           </div>
-          <HistoryTable rows={rows} />
+          <HistoryTable rows={rows} reconciliation={reconciliationNote(reconciliation)} />
         </>
       )}
     </section>
   );
 }
 
-function HistoryTable({ rows }: { rows: HistoryRow[] }) {
+function HistoryTable({ rows, reconciliation }: { rows: HistoryRow[]; reconciliation?: string | null }) {
   const money = (v: unknown) => moneyText(v, "—");
   const count = (v: unknown) => countText(v, "—");
+  const leadNet = rows.some((r) => isNum(r.cost_per?.lead?.all_in_net_of_credits));
+  const apptNet = rows.some((r) => isNum(r.cost_per?.appointment?.all_in_net_of_credits));
+  const closeNet = rows.some((r) => isNum(r.cost_per?.closing?.all_in_net_of_credits));
   return (
     <div className="tablewrap">
       <table className="yp-table">
@@ -483,34 +510,44 @@ function HistoryTable({ rows }: { rows: HistoryRow[] }) {
             <th className="r">Closings</th>
             <th className="r">CPL all-in</th>
             <th className="r">CPL ad spend</th>
+            {leadNet ? <th className="r">CPL net</th> : null}
             <th className="r">CPL unconfirmed</th>
             <th className="r">CPA all-in</th>
             <th className="r">CPA ad spend</th>
+            {apptNet ? <th className="r">CPA net</th> : null}
             <th className="r">CPC all-in</th>
             <th className="r">CPC ad spend</th>
+            {closeNet ? <th className="r">CPC net</th> : null}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={String(r.period)}>
-              <td>{r.period || "—"}</td>
-              <td>{r.status || "—"}</td>
-              <td className="r">{money(r.invoices?.all_in_cost)}</td>
-              <td className="r">{money(r.invoices?.ad_spend)}</td>
-              <td className="r">{count(r.fub?.new_leads)}</td>
-              <td className="r">{count(r.fub?.appointments_set)}</td>
-              <td className="r">{count(r.fub?.closings)}</td>
-              <td className="r">{money(r.cost_per?.lead?.all_in)}</td>
-              <td className="r">{money(r.cost_per?.lead?.ad_spend_only)}</td>
-              <td className="r">{money(r.cost_per?.lead?.dashboard_spend_basis_unconfirmed)}</td>
-              <td className="r">{money(r.cost_per?.appointment?.all_in)}</td>
-              <td className="r">{money(r.cost_per?.appointment?.ad_spend_only)}</td>
-              <td className="r">{money(r.cost_per?.closing?.all_in)}</td>
-              <td className="r">{money(r.cost_per?.closing?.ad_spend_only)}</td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const source = monthSource(r.invoices);
+            return (
+              <tr key={String(r.period)}>
+                <td>{r.period || "—"}{source ? <div className="yp-src">{source}</div> : null}</td>
+                <td>{r.status || "—"}</td>
+                <td className="r">{money(r.invoices?.all_in_cost)}</td>
+                <td className="r">{money(r.invoices?.ad_spend)}</td>
+                <td className="r">{count(r.fub?.new_leads)}</td>
+                <td className="r">{count(r.fub?.appointments_set)}</td>
+                <td className="r">{count(r.fub?.closings)}</td>
+                <td className="r">{money(r.cost_per?.lead?.all_in)}</td>
+                <td className="r">{money(r.cost_per?.lead?.ad_spend_only)}</td>
+                {leadNet ? <td className="r">{money(r.cost_per?.lead?.all_in_net_of_credits)}</td> : null}
+                <td className="r">{money(r.cost_per?.lead?.dashboard_spend_basis_unconfirmed)}</td>
+                <td className="r">{money(r.cost_per?.appointment?.all_in)}</td>
+                <td className="r">{money(r.cost_per?.appointment?.ad_spend_only)}</td>
+                {apptNet ? <td className="r">{money(r.cost_per?.appointment?.all_in_net_of_credits)}</td> : null}
+                <td className="r">{money(r.cost_per?.closing?.all_in)}</td>
+                <td className="r">{money(r.cost_per?.closing?.ad_spend_only)}</td>
+                {closeNet ? <td className="r">{money(r.cost_per?.closing?.all_in_net_of_credits)}</td> : null}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      {reconciliation ? <p className="yp-note">{reconciliation}</p> : null}
       <p className="yp-cap">
         CPL, CPA, and CPC are cost per lead, appointment, and closing. — is no data, not zero.
         {rows.some((r) => r.fub?.closings_unit === "fub_deals_unconfirmed_vs_exp_units" || r.cost_per?.closing?.closings_unit === "fub_deals_unconfirmed_vs_exp_units" || r.flags?.includes("closings_unit_unconfirmed"))
@@ -620,7 +657,7 @@ function Categories({ ytd }: { ytd?: NonNullable<NonNullable<YlopoData["totals"]
   return (
     <section className="section">
       <h2 className="serif">Cost categories</h2>
-      <p className="yp-cap">Invoice line items · {monthList(ytd?.invoice_months_covered)}</p>
+      <p className="yp-cap">Invoice line items · {monthList(ytd?.invoice_months_covered)}{ytd?.category_breakdown && "Discount" in ytd.category_breakdown ? " · Discount is a cost category, not ad spend." : ""}</p>
       {!entries.length ? <p className="yp-empty">No data</p> : (
         <div className="bars">
           {entries.map(([name, value]) => (
@@ -648,7 +685,7 @@ function Body({ data }: { data: YlopoData }) {
       <div className="page-body">
         {agent ? <AgentBanner note="Ylopo figures are team totals. This snapshot has no per-agent numbers." /> : null}
         <Costs data={data} />
-        <Trends rows={history} policy={data.history_policy} />
+        <Trends rows={history} policy={data.history_policy} reconciliation={data.invoice_reconciliation} />
         <Daily days={days} />
         <Dashboard day={days.length ? days[days.length - 1] : null} />
         <Categories ytd={data.totals?.ytd} />
