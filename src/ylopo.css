@@ -1,0 +1,55 @@
+/* Ylopo totals (schema ylopo.v1). Visual language matches the Zillow tab. */
+.ylopo .page-title { margin-bottom: 4px; }
+.yp-source { font-size: 13px; color: #6B6B6B; margin: 0 0 12px; line-height: 1.45; max-width: 720px; }
+.yp-ranges { list-style: none; margin: 0 0 20px; padding: 12px 14px; background: #fff; border: 1px solid #D6D0C2; border-left: 4px solid #00519B; border-radius: 6px; display: grid; gap: 6px; }
+.yp-ranges li { font-size: 13px; line-height: 1.45; color: #1A1A1A; }
+.yp-ranges b { color: #00519B; font-weight: 600; margin-right: 6px; }
+
+.yp-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+@media (min-width: 720px) {
+  .yp-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .yp-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 960px) {
+  .yp-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.yp-card { background: #fff; border: 1px solid #D6D0C2; border-radius: 6px; padding: 14px 16px; border-top: 3px solid #00519B; min-width: 0; }
+.yp-card.is-empty { border-top-color: #B9B4A8; }
+.yp-k { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6B6B6B; margin-bottom: 4px; }
+.yp-period { font-size: 12px; color: #6B6B6B; margin-bottom: 8px; line-height: 1.4; }
+.yp-v { font-size: 28px; line-height: 1.15; color: #12151C; overflow-wrap: anywhere; }
+@media (max-width: 420px) { .yp-v { font-size: 24px; } }
+.yp-sub { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6B6B6B; margin-bottom: 4px; }
+.yp-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.yp-pair.cols-3 { grid-template-columns: 1fr; }
+.yp-pair.cols-3 .yp-v { font-size: 22px; }
+@media (min-width: 720px) { .yp-pair.cols-3 { grid-template-columns: 1fr 1fr 1fr; } .yp-grid.cols-4 { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 960px) { .yp-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.yp-src { margin-top: 2px; font-size: 11px; font-weight: 400; color: #6B6B6B; letter-spacing: 0; text-transform: none; }
+.yp-meta { margin-top: 8px; font-size: 12px; color: #6B6B6B; line-height: 1.4; }
+.yp-note { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: #1A1A1A; background: #F3F1EB; border-left: 3px solid #C0A062; padding: 8px 10px; border-radius: 3px; }
+.yp-empty { color: #6B6B6B; font-size: 14px; padding: 8px 0; margin: 0; }
+.yp-cap { font-size: 13px; color: #6B6B6B; margin: 8px 0 0; line-height: 1.45; }
+.yp-banner { background: #F3F1EB; border: 1px solid #D6D0C2; border-radius: 6px; padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.yp-h3 { font-size: 18px; margin: 18px 0 0; }
+.yp-chart { margin: 16px 0 0; min-width: 0; }
+.yp-chart figcaption { font-size: 17px; margin-bottom: 4px; }
+.yp-chart svg { width: 100%; height: auto; display: block; }
+.yp-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 6px; font-size: 12px; color: #3a3a3a; }
+.yp-legend span { display: inline-flex; align-items: center; }
+.yp-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
+
+.ylopo .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 16px; }
+.ylopo table.yp-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1180px; }
+.ylopo table.yp-table th,
+.ylopo table.yp-table td { padding: 8px 10px; border-bottom: 1px solid #E6E2D8; text-align: left; white-space: nowrap; }
+.ylopo table.yp-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #6B6B6B; background: #F3F1EB; position: sticky; top: 0; cursor: default; }
+.ylopo table.yp-table td.r,
+.ylopo table.yp-table th.r { text-align: right; font-variant-numeric: tabular-nums; }
+.ylopo table.yp-table tr:hover td { background: #FAF8F3; }
+.ylopo table.yp-table td:first-child,
+.ylopo table.yp-table th:first-child { position: sticky; left: 0; z-index: 1; }
+.ylopo table.yp-table td:first-child { background: #fff; box-shadow: inset -1px 0 0 #E6E2D8; }
+.ylopo table.yp-table th:first-child { z-index: 2; background: #F3F1EB; }
+.ylopo table.yp-table tr:hover td:first-child { background: #FAF8F3; }
