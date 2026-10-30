@@ -86,3 +86,16 @@
 .zillow .zl-sortbtn:focus-visible { outline: 2px solid #00519B; outline-offset: -2px; }
 .zillow table.zl-table tr.zl-total td { font-weight: 600; background: #F8F6F0; border-bottom: 2px solid #D6D0C2; }
 .zillow .zl-total-bad { color: #8A1F1F; }
+
+/* Period views */
+.zillow .zl-muted { color: #8A867C; font-size: 12px; }
+.zillow .zl-dagger { font-size: 10px; margin-left: 2px; color: #8A5A00; }
+.zillow .zl-total-sep { color: #6B6B6B; }
+.zillow .zl-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.zillow .zl-period .seg { margin: 4px 0 !important; }
+.zillow table.zl-monthly { min-width: 900px; }
+.zillow table.zl-monthly td:first-child, .zillow table.zl-monthly th:first-child { position: sticky; left: 0; z-index: 1; background: #fff; box-shadow: 1px 0 0 #E6E2D8; }
+.zillow table.zl-monthly th:first-child { background: #F3F1EB; z-index: 2; }
+.zillow table.zl-monthly th:last-child { background: #EFEBE1; }
+@media (max-width: 560px) { .zillow table.zl-monthly td:first-child { min-width: 120px !important; max-width: 140px; } }
+.zillow table.zl-monthly td, .zillow table.zl-monthly .zl-sortbtn { padding-left: 6px; padding-right: 6px; }

@@ -13,6 +13,10 @@ export type Col = {
   gt?: string[];
   /** Rate fallback when Tableau has no grand total: sum(num) / sum(den) * 100, used only when both sums are present and den > 0. */
   ratio?: [string, string];
+  /** Count column whose Total is Tableau's own grand total (Tableau calculates it separately, so rows need not sum to it). */
+  totalFrom?: "tableau";
+  /** Short note shown when such a Tableau total differs from the row sum. */
+  totalNote?: string;
   /** Cell renderer; defaults by kind. */
   render?: (row: any) => ReactNode;
   style?: React.CSSProperties;
@@ -69,7 +73,14 @@ export function useSort(rows: any[], cols: Col[]) {
   return { sorted, sort, toggle };
 }
 
-export type TotalCell = { value: number | null; source: "sum" | "tableau" | "ratio" | "blank"; tableau: number | null; mismatch: boolean };
+export type TotalCell = {
+  value: number | null;
+  source: "sum" | "tableau" | "ratio" | "blank";
+  tableau: number | null;
+  mismatch: boolean;
+  /** Set when the Total is Tableau's separately calculated grand total: the agent-row sum, for the note. */
+  rowsSum?: number | null;
+};
 
 function gtValue(col: Col, gt: any): number | null {
   if (!gt) return null;
@@ -93,7 +104,9 @@ export function computeTotals(cols: Col[], rows: any[], gt: any): Record<string,
   const out: Record<string, TotalCell> = {};
   for (const c of cols) {
     const tableau = c.kind === "count" || c.kind === "rate" ? gtValue(c, gt) : null;
-    if (c.kind === "count") {
+    if (c.kind === "count" && c.totalFrom === "tableau" && tableau != null) {
+      out[c.key] = { value: tableau, source: "tableau", tableau, mismatch: false, rowsSum: colSum(rows, c.key) };
+    } else if (c.kind === "count") {
       const s = colSum(rows, c.key);
       out[c.key] = { value: s, source: s == null ? "blank" : "sum", tableau, mismatch: s != null && tableau != null && Math.abs(s - tableau) > 1e-9 };
     } else if (c.kind === "rate") {
@@ -123,17 +136,23 @@ function defaultCell(c: Col, r: any): ReactNode {
 export function TotalsCheck({ cols, totals }: { cols: Col[]; totals: Record<string, TotalCell> }) {
   const checked = cols.filter((c) => c.kind === "count" && totals[c.key]?.tableau != null);
   const bad = checked.filter((c) => totals[c.key].mismatch);
+  const sep = checked.filter((c) => totals[c.key].rowsSum !== undefined && totals[c.key].rowsSum !== totals[c.key].tableau);
   if (!checked.length) return null;
-  if (!bad.length) return <>Total row: {checked.length} count column{checked.length === 1 ? "" : "s"} equal Tableau's grand totals</>;
+  const sepNote = sep.length ? (
+    <span className="zl-total-sep">
+      {" "}† {sep.map((c) => `${c.label} total ${fmtNum(totals[c.key].tableau)} is Tableau's grand total; agent rows sum to ${fmtNum(totals[c.key].rowsSum)}. ${c.totalNote || "Tableau calculates it separately"}`).join(" ")}
+    </span>
+  ) : null;
+  if (!bad.length) return <>Total row: {checked.length} count column{checked.length === 1 ? "" : "s"} equal Tableau's grand totals{sepNote}</>;
   return (
     <span className="zl-total-bad">
-      Total row mismatch: {bad.map((c) => `${c.label} sums to ${fmtNum(totals[c.key].value)} vs Tableau ${fmtNum(totals[c.key].tableau)}`).join("; ")}
+      Total row mismatch: {bad.map((c) => `${c.label} sums to ${fmtNum(totals[c.key].value)} vs Tableau ${fmtNum(totals[c.key].tableau)}`).join("; ")}{sepNote}
     </span>
   );
 }
 
 export function SortableAgentTable({
-  cols, rows, grandTotal, rowKey = "agent", rowStyle, totalLabel = "Total", pinned, totals: totalsIn,
+  cols, rows, grandTotal, rowKey = "agent", rowStyle, totalLabel = "Total", pinned, totals: totalsIn, className,
 }: {
   cols: Col[];
   rows: any[];
@@ -144,12 +163,14 @@ export function SortableAgentTable({
   /** Rows pinned above the sorted body instead of a computed Total row (e.g. Tableau's own Grand Total). */
   pinned?: any[];
   totals?: Record<string, TotalCell>;
+  /** Extra class on the table (e.g. zl-monthly). */
+  className?: string;
 }) {
   const { sorted, sort, toggle } = useSort(rows, cols);
   const totals = useMemo(() => totalsIn ?? computeTotals(cols, rows, grandTotal), [totalsIn, cols, rows, grandTotal]);
   return (
     <div className="tablewrap">
-      <table className="zl-table zl-sortable">
+      <table className={`zl-table zl-sortable${className ? ` ${className}` : ""}`}>
         <thead>
           <tr>
             {cols.map((c) => {
@@ -177,9 +198,11 @@ export function SortableAgentTable({
                 if (i === 0) return <td key={c.key}>{totalLabel}</td>;
                 const t = totals[c.key];
                 const txt = t.value == null ? "" : c.kind === "rate" ? fmtPct(t.value) : fmtNum(t.value);
+                const sepd = t.rowsSum !== undefined && t.rowsSum !== t.tableau;
                 const title = t.source === "sum" ? (t.tableau != null ? `Column sum · Tableau grand total ${fmtNum(t.tableau)}` : "Column sum (no Tableau grand total)")
-                  : t.source === "tableau" ? "Tableau grand total" : t.source === "ratio" ? "Ratio of summed columns" : undefined;
-                return <td key={c.key} className={`${isNum(c.kind) ? "r" : ""}${t.mismatch ? " zl-total-bad" : ""}`} title={title}>{txt}{t.mismatch ? " ⚠" : ""}</td>;
+                  : t.source === "tableau" ? (t.rowsSum !== undefined ? `Tableau grand total (calculated separately by Tableau; agent rows sum to ${fmtNum(t.rowsSum)})` : "Tableau grand total")
+                  : t.source === "ratio" ? "Ratio of summed columns" : undefined;
+                return <td key={c.key} className={`${isNum(c.kind) ? "r" : ""}${t.mismatch ? " zl-total-bad" : ""}`} title={title}>{txt}{t.mismatch ? " ⚠" : ""}{sepd ? <sup className="zl-dagger">†</sup> : null}</td>;
               })}
             </tr>
           )}

@@ -5,6 +5,7 @@ import { useAgent, sameAgent, AgentBanner, usePersist } from "./agent";
 import "./fubaudit.css";
 import "./zillow.css";
 import { SortableAgentTable, TotalsCheck, computeTotals, type Col } from "./zillowTable";
+import { MonthlyTable, boardFor, periodsAvailable, PERIOD_LABEL, shortDate, shortRange, type PeriodId } from "./zillowPeriods";
 
 type Rating = "High" | "Fair" | "Low" | null | undefined;
 type TabId = "performance" | "team" | "funnel" | "agents" | "details" | "glossary" | "top10";
@@ -269,20 +270,35 @@ function TeamDetailsTab({ data }: { data: any }) {
       <h2 className="serif">Team Details</h2>
       <p className="zl-cap">Performance Category · windows available in this pull (Buyer L6M, ZHL L6M/L3M, Seller blank, Ops monthly).</p>
       <Seg options={opts} value={active} onChange={setCat} />
-      {active === "buyer_connections" ? <TeamBuyer block={block} /> : null}
-      {active === "zhl" ? <TeamZhl block={block} /> : null}
+      {active === "buyer_connections" ? <TeamBuyer block={block} data={data} /> : null}
+      {active === "zhl" ? <TeamZhl block={block} data={data} /> : null}
       {active === "seller_connections" ? (
         <div className="zl-banner"><b>No data in Zillow Reporting yet.</b> Seller Connections are blank in Tableau for this refresh.
           {block.row_labels?.length ? <div className="zl-meta" style={{ marginTop: 8 }}>Row labels: {block.row_labels.join(" · ")}</div> : null}
         </div>
       ) : null}
-      {active === "ops_health" ? <TeamOps block={block} /> : null}
+      {active === "ops_health" ? <TeamOps block={block} data={data} /> : null}
     </section>
   );
 }
 
-function TeamBuyer({ block }: { block: any }) {
+const refreshOf = (data: any) => shortDate(data?.periods?.last_refresh_label || data?.last_refresh_label);
+const monthlyOf = (data: any, key: string) => data?.periods?.monthly?.[key] ?? null;
+
+function TeamBuyer({ block, data }: { block: any; data: any }) {
   const rows = block.by_month || [];
+  const mt = monthlyOf(data, "team_buyer_connections");
+  if (mt) {
+    return (
+      <>
+        <MonthlyTable table={mt} refresh={refreshOf(data)} yoyNote={data.periods?.yoy_note} />
+        <MonthBars
+          bars={Object.fromEntries((block.series?.monthly_logged_trx || []).map((x: any) => [x.month, x.value]))}
+          title={`Monthly logged transactions · ${block.date_window || "Last 6 months"}`}
+        />
+      </>
+    );
+  }
   return (
     <>
       <p className="zl-cap">Filter: {block.date_window || "Last 6 months"}.</p>
@@ -326,9 +342,10 @@ function TeamBuyer({ block }: { block: any }) {
   );
 }
 
-function TeamZhl({ block }: { block: any }) {
+function TeamZhl({ block, data }: { block: any; data: any }) {
   const windows = block.performance_managed_by_window || [];
   const months = block.supporting_by_month || [];
+  const mt = monthlyOf(data, "team_zhl");
   return (
     <>
       <p className="zl-cap">{block.performance_managed_note || "ZHL · Last 6 months"}. {block.caveat ? `Caveat: ${block.caveat}` : ""}</p>
@@ -360,6 +377,7 @@ function TeamZhl({ block }: { block: any }) {
         </table>
       </div>
       <h3 className="serif" style={{ fontSize: 18, marginTop: 16 }}>Supporting metrics by month</h3>
+      {mt ? <MonthlyTable table={mt} refresh={refreshOf(data)} yoyNote={data.periods?.yoy_note} /> : (
       <div className="tablewrap">
         <table className="zl-table">
           <thead>
@@ -394,13 +412,23 @@ function TeamZhl({ block }: { block: any }) {
           </tbody>
         </table>
       </div>
+      )}
       <MonthBars bars={block.chart_l3m_eligible_preapprovals} title="L3M eligible pre-approvals" />
     </>
   );
 }
 
-function TeamOps({ block }: { block: any }) {
+function TeamOps({ block, data }: { block: any; data: any }) {
   const rows = block.by_month || [];
+  const mt = monthlyOf(data, "team_ops_health");
+  if (mt) {
+    return (
+      <>
+        <p className="zl-cap">Ops Health · all rows are percentages; Tableau gives no aggregate, so the Total column shows —.</p>
+        <MonthlyTable table={mt} refresh={refreshOf(data)} yoyNote={data.periods?.yoy_note} />
+      </>
+    );
+  }
   return (
     <>
       <p className="zl-cap">Ops Health · {block.date_window || "Last 6 months"}.{block.caveat ? ` ${block.caveat}` : ""}</p>
@@ -456,6 +484,7 @@ function FunnelTab({ data }: { data: any }) {
 
   const table = block.table_2026;
   const months = (table?.months || []).filter((m: string) => m !== "Grand Total");
+  const mt = monthlyOf(data, active === "zhl" ? "funnel_zhl" : "funnel_buyer_connections");
   return (
     <section className="section">
       <h2 className="serif">Funnel · {active === "zhl" ? "ZHL" : "Buyer Connections"}</h2>
@@ -467,7 +496,17 @@ function FunnelTab({ data }: { data: any }) {
       {block.donut_pct_of_live_cxs ? (
         <p className="zl-cap">Share of live connections: {Object.entries(block.donut_pct_of_live_cxs).map(([k, v]) => `${k} ${pct(v)}`).join(" · ")}</p>
       ) : null}
-      {table ? (
+      {mt ? (
+        <div style={{ marginTop: 16 }}>
+          <h3 className="serif" style={{ fontSize: 18 }}>Monthly table</h3>
+          <MonthlyTable
+            table={mt}
+            refresh={refreshOf(data)}
+            yoyNote={data.periods?.yoy_note}
+            extraNote={active === "zhl" ? "Tableau's ZHL funnel table shows only May–Oct 2026 (its Date control is hidden in the ZHL view), so the Total covers those 6 months." : `Funnel stages above use ${block.date_window || "Last 6 months"}; this table uses Tableau's ${mt.date_filter || "Last 6 years"} filter.`}
+          />
+        </div>
+      ) : table ? (
         <div className="tablewrap" style={{ marginTop: 16 }}>
           <table className="zl-table">
             <thead>
@@ -500,7 +539,7 @@ function FunnelTab({ data }: { data: any }) {
           />
         </>
       ) : null}
-      {months.length ? <p className="zl-cap">Monthly columns {months[0]}–{months[months.length - 1]} plus Grand Total.</p> : null}
+      {!mt && months.length ? <p className="zl-cap">Monthly columns {months[0]}–{months[months.length - 1]} plus Grand Total.</p> : null}
     </section>
   );
 }
@@ -580,7 +619,7 @@ const ZHL_COLS: Col[] = [
   { key: "connected_with_lo", label: "Connected LO", kind: "count" },
   { key: "credit_pulls", label: "Credit pulls", kind: "count" },
   { key: "zhl_preapprovals", label: "Pre-appr", kind: "count", gt: ["zhl_preapprovals", "preapprovals"] },
-  { key: "preapproval_target_monthly", label: "Target", kind: "count" },
+  { key: "preapproval_target_monthly", label: "Target", kind: "count", totalFrom: "tableau", totalNote: "Tableau calculates the Pre-Approval Target total separately" },
   { key: "funded_loans", label: "Funded", kind: "count" },
 ];
 
@@ -642,6 +681,11 @@ function AgentsTab({ data, focus }: { data: any; focus: string | null }) {
     });
   }, [rows]);
   const summaryTotals = useMemo(() => computeTotals(SUMMARY_COLS, rows, gt), [rows, gt]);
+  const [period, setPeriod] = usePersist<PeriodId>("zagp", "l3m");
+  const boardCat = active === "buyer_connections" || active === "zhl" ? active : null;
+  const avail = boardCat ? periodsAvailable(data, boardCat) : [];
+  const per: PeriodId = avail.includes(period) ? period : "l3m";
+  const board = boardCat ? boardFor(data, boardCat, per) : null;
 
   return (
     <section className="section">
@@ -661,13 +705,30 @@ function AgentsTab({ data, focus }: { data: any; focus: string | null }) {
             <div className="zl-stat"><div className="k">Funded</div><div className="v serif">{num(gt.total_funded_l90d)}</div></div>
           </div>
           <p className="zl-cap"><TotalsCheck cols={SUMMARY_COLS} totals={summaryTotals} />.</p>
+          {data.periods ? <p className="zl-cap zl-muted">Summary is Last 90 days only; Tableau has no date filter for the Summary board. Use Buyer or ZHL for Month to date, Last month or Year to date.</p> : null}
           <SortableAgentTable cols={SUMMARY_COLS} rows={sorted} totals={summaryTotals} rowStyle={(a) => (focus && sameAgent(a.agent, focus) ? { background: "#EAF2FA" } : undefined)} />
         </>
       ) : null}
-      {active === "buyer_connections" ? <AgentBuyerBoard block={byCat.buyer_connections} focus={focus} /> : null}
-      {active === "zhl" ? <AgentZhlBoard block={byCat.zhl} focus={focus} /> : null}
+      {boardCat && avail.length > 1 ? (
+        <div className="zl-period" role="group" aria-label="Date range">
+          <Seg options={avail.map((id) => ({ id, label: PERIOD_LABEL[id] }))} value={per} onChange={(v) => setPeriod(v as PeriodId)} />
+        </div>
+      ) : null}
+      {boardCat ? <PeriodLine block={board} period={per} refresh={refreshOf(data)} /> : null}
+      {active === "buyer_connections" ? <AgentBuyerBoard block={board} focus={focus} /> : null}
+      {active === "zhl" ? <AgentZhlBoard block={board} focus={focus} /> : null}
       {active === "seller_connections" ? <AgentSellerBoard block={byCat.seller_connections} focus={focus} /> : null}
     </section>
+  );
+}
+
+function PeriodLine({ block, period, refresh }: { block: any; period: PeriodId; refresh: string }) {
+  if (!block) return null;
+  const range = shortRange(block.resolved_range);
+  return (
+    <p className="zl-cap" style={{ marginTop: 0 }}>
+      <b>{PERIOD_LABEL[period]}</b>{range ? ` · ${range}` : period === "l3m" ? " · Tableau's Last 3 months filter (range not shown in this capture)" : ""} · Tableau refresh {refresh}
+    </p>
   );
 }
 
@@ -678,7 +739,7 @@ function AgentBuyerBoard({ block, focus }: { block: any; focus: string | null })
   const rows: any[] = block.rows || [];
   return (
     <>
-      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents{block.column_sum_check ? ` · ${block.column_sum_check}` : ""} · <TotalsCheck cols={COLS} totals={computeTotals(COLS, rows, g)} />.</p>
+      <p className="zl-cap">{rows.length} agents{block.column_sum_check ? ` · ${block.column_sum_check}` : ""} · <TotalsCheck cols={COLS} totals={computeTotals(COLS, rows, g)} />.</p>
       <div className="zl-myscore-grid" style={{ margin: "12px 0" }}>
         <div className="zl-stat"><div className="k">Buyer cxns</div><div className="v serif">{num(g.buyer_connections)}</div></div>
         <div className="zl-stat"><div className="k">Pickup rate</div><div className="v serif">{pct(g.pickup_rate)}</div></div>
@@ -697,7 +758,7 @@ function AgentZhlBoard({ block, focus }: { block: any; focus: string | null }) {
   const rows: any[] = block.rows || [];
   return (
     <>
-      <p className="zl-cap">{block.date_window || "Last 3 months"} · {rows.length} agents{block.column_sum_check ? ` · ${block.column_sum_check}` : ""} · <TotalsCheck cols={COLS} totals={computeTotals(COLS, rows, g)} />.</p>
+      <p className="zl-cap">{rows.length} agents{block.column_sum_check ? ` · ${block.column_sum_check}` : ""} · <TotalsCheck cols={COLS} totals={computeTotals(COLS, rows, g)} />.</p>
       <div className="zl-myscore-grid" style={{ margin: "12px 0" }}>
         <div className="zl-stat"><div className="k">Preferred buyer</div><div className="v serif">{num(g.preferred_buyer_connections)}</div></div>
         <div className="zl-stat"><div className="k">Transfers</div><div className="v serif">{num(g.total_transfers)}</div></div>
