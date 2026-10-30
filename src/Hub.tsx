@@ -15,6 +15,7 @@ type Tile = {
 /** Ops hub tiles: confirmed URLs / in-app routes only. Referral Hub is one applet, not the whole page. */
 export const HUB_TILES: Tile[] = [
   { id: "referrals", label: "Referral Hub", hint: "Out-of-area client handoffs", group: "Apps", route: "referrals" },
+  { id: "listings", label: "Listings & Closings", hint: "HAR listings, leases, and closings", group: "Apps", route: "listings" },
   { id: "team", label: "Team Metrics", hint: "Production, leads, P&L", group: "Metrics", route: "team" },
   { id: "myt", label: "Multi-Year Trends", hint: "Year × month tables", group: "Metrics", route: "myt" },
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", group: "Metrics", route: "fub-audit" },
