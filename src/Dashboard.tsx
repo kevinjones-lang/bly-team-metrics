@@ -107,6 +107,11 @@ export default function Dashboard() {
   const SG = (o: any) => (!o || lrOn === "on" ? o : { ...o, sUnits: o.sUnitsX || o.sUnits, sVol: o.sVolX || o.sVol, sGci: o.sGciX || o.sGci, xRev: o.xRevX || o.xRev, pend: o.pendX ?? o.pend, coDollar: o.coDollarX || o.coDollar,
     mon: o.mon && { ...o.mon, mon_sisu_units: o.mon.mon_sisu_units_x || o.mon.mon_sisu_units, mon_sisu_gci: o.mon.mon_sisu_gci_x || o.mon.mon_sisu_gci, mon_exp_rev: o.mon.mon_exp_rev_x || o.mon.mon_exp_rev } });
   const LRL = lrOn === "on" ? "incl. leases & referrals" : "excl. leases & referrals";
+  // Per-agent closings (Kevin 2026-11-02): closed SALES credited to the working agent (Sisu; SkySlope for unassigned rows, SkySlope close date).
+  // Team totals stay on eXp base Transaction IDs (sUnits). waUnits/waVol never include leases/referrals.
+  const WZ = [0, 0, 0, 0, 0];
+  const waU = (o: any) => (o && o.waUnits) || WZ; const waV = (o: any) => (o && o.waVol) || WZ;
+  const WA_NOTE = "Agent closings = closed sales credited to the working agent in Sisu (SkySlope's working agent for Sisu rows with no agent; SkySlope's close date when the address matches a closed SkySlope file). Leases & referrals excluded; one agent on both sides = 2; two team agents on one side split it.";
   const key = view === "agent" ? agent : view;
   const s: any = SG(D.segs[key]);
   const i = PI[per];
@@ -216,12 +221,15 @@ export default function Dashboard() {
 
       <Section heading="Production" caption={`Sisu closings ${LRL} (lease/referral = sale price under $25k, a Ref/Lease address, or an eXp LeaseRental/Referral file). eXp sales counts never include leases/referrals; eXp team revenue follows the toggle. Three GCI figures: gross (Sisu, by close date), team share (eXp, by close date), deposited (P&L, by deposit date). Units (Kevin 2026-10-29): 2026 closed and pending units = unique eXp transaction IDs (digits after the decimal ignored); a deal where we represented both buyer and seller counts 2; co-agented deals split the unit; leases/referrals follow the toggle. Before 2026, units are Sisu transactions: Sisu buyer and seller records for the same address and close date count as one closing with volume once (GCI from both sides is kept). The unit goes to the team member on the deal; Deborah gets it only when she is alone on it, and her duplicate same-side records are dropped. Co-agented deals split the unit and volume between the agents, so agents sum to the team. Deborah's team-leader share of eXp revenue counts in team totals but on no agent row.`}>
         <Table noTotals columns={["Metric", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
-          ["Closed units (transactions)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "2026: eXp IDs (both sides = 2); earlier: Sisu"],
+          ...(view === "agent" ? [["Closed sales units (working agent)", n0(waU(s)[i]) + (per === "ytd" ? `  (${yoy(waU(s)[2], waU(s)[4])})` : ""), "Sisu working agent; SkySlope for unassigned rows; leases & referrals excluded"],
+            ["Closed sales volume (working agent)", usd(waV(s)[i]), "Sisu trans_amt, working-agent credit"]] : []),
+          [view === "agent" ? "eXp-ID units on this agent's eXp files (team rule, reference)" : "Closed units (transactions)", n0(s.sUnits[i]) + (per === "ytd" ? `  (${yoy(s.sUnits[2], s.sUnits[4])})` : "") + ` · eXp ${n0(s.xUnits[i] + (lrOn === "on" ? s.lease[i] + s.ref[i] : 0))} transactions`, "2026: eXp IDs (both sides = 2); earlier: Sisu"],
           ["Closed volume", usd(s.sVol[i]) + (per === "ytd" ? `  (${yoy(s.sVol[2], s.sVol[4])})` : ""), "Sisu trans_amt"],
           ["Total GCI (Sisu gross)", usd(s.sGci[i]) + (per === "ytd" ? `  (${yoy(s.sGci[2], s.sGci[4])})` : ""), "Sisu gross_commission_amt"],
           ["Company dollar", usd(s.coDollar?.[i]), "eXp: all-agent Team Revenue (team cuts + 100% Deb/Kevin)"],
           ["Agent GCI", usd(agentGci(s.sGci[i], s.coDollar?.[i], view === "agent" ? D.names[agent] : "")), view === "agent" && isCoOwner(D.names[agent]) ? "Deb/Kevin: $0 (commission is company dollar)" : "Total GCI − Company dollar"],
-          ["Company dollar per closed unit", (s.sUnits[i] ? usd((s.coDollar?.[i] || 0) / s.sUnits[i]) : "—"), "Company dollar ÷ Sisu closed units"],
+          ...(view === "isa" || view === "coaching" ? [["Closed sales units, working agent (sum of members)", n0(waU(s)[i]), "Per-agent working-agent credit summed; not the eXp-ID group total above"]] : []),
+          ["Company dollar per closed unit", view === "agent" ? (waU(s)[i] ? usd((s.coDollar?.[i] || 0) / waU(s)[i]) : "—") : (s.sUnits[i] ? usd((s.coDollar?.[i] || 0) / s.sUnits[i]) : "—"), view === "agent" ? "Company dollar ÷ working-agent closed sales units" : "Company dollar ÷ Sisu closed units"],
           ["Closed sales units (de-duplicated)", n0(s.xUnits[i]), "eXp report"],
           ["Closed sales volume", usd(s.xVol[i]), "eXp report"],
           ["Team revenue (all eXp Team Revenue)", usd(s.xRev[i]), "Same total as Company dollar under the all-agent Team Revenue rule"],
@@ -264,7 +272,7 @@ export default function Dashboard() {
         <Text>Sisu activity history via the API starts in July 2026, so YTD equals roughly the last 90 days. No showing activity type is logged in Sisu this year.</Text>
       </Section>
       <Section heading="Conversion funnel" caption="Sisu transaction milestone dates in the period (each step counted independently, not a cohort).">
-        <Bars bars={[["Leads (FUB)", s.leads[i]], ["Appointments set (partial data)", s.sApptSet[i]], ["Appointments met (partial data)", s.sApptMet[i]], ["Signed (partial data)", s.sSigned[i]], ["Under contract", s.sUC[i]], ["Closed", s.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v, display: n0(v) }))} emphasis="none" />
+        <Bars bars={[["Leads (FUB)", s.leads[i]], ["Appointments set (partial data)", s.sApptSet[i]], ["Appointments met (partial data)", s.sApptMet[i]], ["Signed (partial data)", s.sSigned[i]], ["Under contract", s.sUC[i]], [view === "agent" ? "Closed sales (working agent)" : "Closed", view === "agent" ? waU(s)[i] : s.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v, display: n0(v) }))} emphasis="none" />
         <Text>{`Lead to FUB appointment rate: ${pct(s.appt[i], s.leads[i])}. Appointment met to signed: ${pct(s.sSigned[i], s.sApptMet[i])}. Sisu appointment and signed dates are partial data (often left blank), so those steps undercount; under contract uses Sisu uc_dt.`}</Text>
       </Section>
       {view !== "agent" ? (
@@ -389,20 +397,21 @@ export default function Dashboard() {
           <Table columns={["Handoff", "Lead", "Assigned to", "First human call (min)", "By", "FUB deal"]} rows={AI.recent.map((r: any) => [r.date, r.name, r.agent, r.resp_min == null ? { text: "none", tone: "warning" } : n0(r.resp_min), r.responder || "", r.deal ? "yes" : "no"])} />
         </Section>
       </Section>
-      <Section heading="Agent scorecard" caption={`${PL[per]}; Sisu production ${LRL}, FUB leads and calls.`}>
-        <Table ratios={{ "Co$/unit": ["Company dollar", "Units"] }} columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Units", "Volume", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = r.s.sUnits[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(r.s.sVol[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
+      <Section heading="Agent scorecard" caption={`${PL[per]}; closed units and volume = working agent (sales only); GCI and company dollar ${LRL}; FUB leads and calls.`}>
+        <Table ratios={{ "Co$/unit": ["Company dollar", "Closed (working agent)"] }} columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Closed (working agent)", "Volume (working agent)", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = waU(r.s)[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(waV(r.s)[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
+        <Text>{`${WA_NOTE} The totals row sums these agents, so it will not equal the official team total: ${n0(SG(D.segs.team).sUnits[i])} closed units (${PL[per].toLowerCase()}, eXp transaction IDs, both sides = 2, ${LRL}; ${n0(D.segs.team.sUnitsX?.[i] ?? 0)} excl. leases & referrals). eXp files often sit under Deb's ID while another agent did the work, and Sisu and eXp disagree on some close dates.`}</Text>
         <Text>{`Total GCI = Sisu gross commission. Company dollar = all eXp Team Revenue on Closed deals (every agent’s team cut + 100% Deb + 100% Kevin commission lines). Agent GCI = Total GCI − Company dollar for other agents; $0 for Deb and Kevin (their commission is in company dollar). GCI and company dollar come from different systems, so Agent GCI is a working split for the room, not a paycheck figure. eXp has no agent-payout column; Sisu broker-review / royalty / transaction-fee fields are empty on 2026 closings.`}</Text>
       </Section>
-      <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; Sisu production ${LRL}. Total GCI / Company dollar / Agent GCI — see note under the scorecard.`}>
+      <Section heading={`Agent drill-down: ${D.names[agent]}`} caption={`${PL[per]}; closed sales = working agent (leases & referrals excluded); GCI ${LRL}. Total GCI / Company dollar / Agent GCI and working-agent rule — see notes under the scorecard.`}>
         {(() => { const a: any = SG(D.segs[agent]); return a ? (
           <Grid columns={2}>
             <Properties items={[
               { label: "Total GCI (Sisu gross)", value: usd(a.sGci[i]) }, { label: "Company dollar", value: usd(a.coDollar?.[i]) },
-              { label: "Agent GCI", value: usd(agentGci(a.sGci[i], a.coDollar?.[i], D.names[agent])) }, { label: "Company dollar per unit", value: a.sUnits[i] ? usd((a.coDollar?.[i] || 0) / a.sUnits[i]) : "—" },
-              { label: "Closed units", value: n0(a.sUnits[i]) }, { label: "Closed volume", value: usd(a.sVol[i]) },
+              { label: "Agent GCI", value: usd(agentGci(a.sGci[i], a.coDollar?.[i], D.names[agent])) }, { label: "Company dollar per unit", value: waU(a)[i] ? usd((a.coDollar?.[i] || 0) / waU(a)[i]) : "—" },
+              { label: "Closed sales (working agent)", value: n0(waU(a)[i]) }, { label: "Closed sales volume (working agent)", value: usd(waV(a)[i]) },
               { label: "Pending (now)", value: n0(a.pend) }, { label: "New leads", value: n0(a.leads[i]) }, { label: "Outbound calls", value: n0(a.out[i]) },
               { label: "Appointments", value: n0(a.appt[i]) }, { label: "Texts", value: n0(a.texts[i]) }]} />
-            <Bars bars={[["Leads (FUB)", a.leads[i]], ["Appointments set (partial data)", a.sApptSet[i]], ["Appointments met (partial data)", a.sApptMet[i]], ["Signed (partial data)", a.sSigned[i]], ["Under contract", a.sUC[i]], ["Closed", a.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v || 0, display: n0(v) }))} emphasis="none" />
+            <Bars bars={[["Leads (FUB)", a.leads[i]], ["Appointments set (partial data)", a.sApptSet[i]], ["Appointments met (partial data)", a.sApptMet[i]], ["Signed (partial data)", a.sSigned[i]], ["Under contract", a.sUC[i]], ["Closed sales (working agent)", waU(a)[i]]].map(([l, v]: any) => ({ label: l, value: v || 0, display: n0(v) }))} emphasis="none" />
           </Grid>) : <Text>No Sisu or FUB activity recorded for this agent.</Text>; })()}
       </Section>
       <Section heading="Lead attribution" caption={`${PL[per]}. Multi-touch: every tool with evidence on a lead gets full credit, so tool columns overlap and do not sum to the total. A lead is in the period if it was created, touched by a timestamped assist, or ISA-converted in it. Leases ${lease === "in" ? "included" : "excluded"} (global switch).${view === "agent" ? " Matrix shows the whole team; tool table and lead list are for the selected agent (year to date)." : ""}`}>

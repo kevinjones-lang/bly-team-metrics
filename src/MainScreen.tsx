@@ -33,7 +33,9 @@ const lkey = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
 function agentData(data: any, agent: string) {
   const A = data.by_agent?.[agent]; if (!A) return null;
   const key = Object.keys(data.agents || {}).find((k) => lkey(k) === lkey(agent));
-  return { ...data, series: A.series, vol: A.vol, gci: A.gci, pend: A.pend, cash: A.cash, pmon: A.pmon, conv: A.conv, codollar: A.codollar || { all: [0,0,0,0,0,0,0,0,0,0,0,0], x: [0,0,0,0,0,0,0,0,0,0,0,0] }, goals: null, agoal: A.goal, agent, agentKey: key };
+  // Per-agent closings (Kevin 2026-11-02): closed units + volume = SALES credited to the working agent (main_build by_agent[n].wa), both lease switch states.
+  const W = A.wa; const series = W ? { all: { ...A.series.all, closed: W.closed }, x: { ...A.series.x, closed: W.closed } } : A.series; const vol = W ? { all: W.vol, x: W.vol } : A.vol;
+  return { ...data, series, vol, gci: A.gci, pend: A.pend, cash: A.cash, pmon: A.pmon, conv: A.conv, codollar: A.codollar || { all: [0,0,0,0,0,0,0,0,0,0,0,0], x: [0,0,0,0,0,0,0,0,0,0,0,0] }, goals: null, agoal: A.goal, agent, agentKey: key };
 }
 export const MAIN_TABS = [{ value: "snapshot", label: "Snapshot" }, { value: "pacing", label: "Pacing" }, { value: "ceo", label: "CEO" }, { value: "details", label: "Details" }];
 
@@ -44,7 +46,7 @@ export default function MainScreen({ data: data0, lrOn, tab, setTab, agent }: P)
   if (!data) return <div className="mx">{bar}<div className="agentbanner"><b className="serif">{agent}</b><span>— No Sisu production recorded for this agent in this snapshot.</span></div></div>;
   return (<div className="mx">
     {bar}
-    {agent && tab !== "details" ? <div className="agentbanner"><b className="serif">{agent}</b><span>Sisu units credited to this agent (co-agented deals split; team-leader share stays team-only). {data.agoal ? "Goal from the agent's own Sisu goal." : "No goal for this agent in the data, so no goal line."}</span></div> : null}
+    {agent && tab !== "details" ? <div className="agentbanner"><b className="serif">{agent}</b><span>Closed units and volume = closed sales credited to the working agent (Sisu; SkySlope's working agent and close date for Sisu rows with no agent; leases & referrals excluded; one agent on both sides = 2; team agents on one side split it). Team totals use eXp transaction IDs, so agents do not sum to the team. {data.agoal ? "Goal from the agent's own Sisu goal." : "No goal for this agent in the data, so no goal line."}</span></div> : null}
     {tab === "snapshot" ? <Snapshot d={data} v={lrOn ? "all" : "x"} /> : null}
     {tab === "pacing" ? <Pacing d={data} v={lrOn ? "all" : "x"} /> : null}
     {tab === "ceo" ? <Ceo d={data} v={lrOn ? "all" : "x"} lrOn={lrOn} /> : null}
@@ -127,7 +129,8 @@ function Pacing({ d, v }: { d: any; v: string }) {
   const [per, setPer] = usePersist("pp", "mtd"); const [who0, setWho] = usePersist("pw", "team");
   const who = d.agent ? (d.agentKey ?? "__none") : who0;
   const names = useMemo(() => Object.keys(d.agents).filter((k) => k !== "team" && k !== "Unknown").sort(), [d]);
-  const AZ = { b: {}, s: {} }; const A = d.agent ? (d.agents[who]?.[v]?.[per] ?? AZ) : (d.agents[who] || d.agents.team)[v][per]; const g = (s: string, k: string) => (A[s] && A[s][k]) || 0;
+  const AZ = { b: {}, s: {} }; const A = d.agent ? (d.agents[who]?.[v]?.[per] ?? AZ) : (d.agents[who] || d.agents.team)[v][per]; const WA = who !== "team" ? d.agents[who]?.wa?.[per] : null; // agent scope: closings = working agent, sales only (Kevin 2026-11-02)
+  const g = (s: string, k: string) => (WA && (k === "closed" || k === "vol") ? WA[s]?.[k] : A[s] && A[s][k]) || 0;
   const both = (k: string) => g("b", k) + g("s", k);
   const conv = (d.convA[who] || {})[per];
   const m = d.month - 1, Y = d.years[2];
@@ -150,7 +153,7 @@ function Pacing({ d, v }: { d: any; v: string }) {
     <div className="mx-filters">
       <label className="mx-field"><span>Period</span><select value={per} onChange={(e) => setPer(e.target.value)}>{PERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></label>
       {d.agent ? null : <label className="mx-field"><span>Scope</span><select value={who} onChange={(e) => setWho(e.target.value)}><option value="team">Whole team</option>{names.map((n) => <option key={n} value={n}>{n}</option>)}</select></label>}
-      <span className="mx-hint">{d.periods[per][0]} to {d.periods[per][1]} · Sisu dates</span>
+      <span className="mx-hint">{d.periods[per][0]} to {d.periods[per][1]} · Sisu dates{who !== "team" ? " · closed units & volume = working agent, sales only (SkySlope close date when matched)" : " · team closed units = eXp transaction IDs"}</span>
     </div>
     {G ? <GoalBanner d={d} v={v} /> : null}
     <div className="mx-tops">{top.map(([t, val, sub, raw, gg]) => { const st = status(raw || 0, gg); const f = gg ? Math.min(1, (raw || 0) / gg.full) : 0;
