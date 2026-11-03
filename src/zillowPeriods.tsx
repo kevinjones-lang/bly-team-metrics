@@ -7,6 +7,57 @@ import { SortableAgentTable, type Col } from "./zillowTable";
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fin = (v: any) => typeof v === "number" && isFinite(v);
 
+/** Parse a month label ("2026-04", "Apr 2026", "April 2026", "Apr '26", "Apr") to { y, m } (m 0–11; y null when absent). */
+export function parseMonth(label: any): { y: number | null; m: number } | null {
+  const s = String(label ?? "").trim();
+  let x = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(s);
+  if (x && +x[2] >= 1 && +x[2] <= 12) return { y: +x[1], m: +x[2] - 1 };
+  x = /^(\d{1,2})\/(\d{4})$/.exec(s);
+  if (x && +x[1] >= 1 && +x[1] <= 12) return { y: +x[2], m: +x[1] - 1 };
+  x = /^([A-Za-z]{3,})\.?(?:[\s,'-]+(\d{2}|\d{4}))?$/.exec(s);
+  if (!x) return null;
+  const m = MON.findIndex((n) => n.toLowerCase() === x![1].slice(0, 3).toLowerCase());
+  if (m < 0) return null;
+  const y = x[2] ? (x[2].length === 2 ? 2000 + +x[2] : +x[2]) : null;
+  return { y, m };
+}
+
+/** Short axis tick for a month label: "2026-04" / "Apr 2026" / "April" -> "Apr"; other labels are cut to 3 chars. */
+export function monthTick(label: any): string {
+  const p = parseMonth(label);
+  return p ? MON[p.m] : String(label ?? "").slice(0, 3);
+}
+
+/**
+ * Month labels in calendar order (year, then month), whatever order the payload object came in
+ * (Postgres jsonb stores object keys by length then bytes, so { Apr, May, Jun, … } comes back Apr, Aug, Jul, …).
+ * Labels without a year are a rolling window: the window starts after the largest gap in the 12-month cycle,
+ * so Nov, Dec, Jan stays Nov → Jan. Unparseable labels keep their relative order after the months.
+ */
+export function chronoMonths<T>(items: T[], labelOf: (t: T) => any = (t) => t): T[] {
+  const parsed = items.map((t, i) => ({ t, i, p: parseMonth(labelOf(t)) }));
+  const ok = parsed.filter((x) => x.p);
+  const bad = parsed.filter((x) => !x.p);
+  let start = 0;
+  const yearless = ok.filter((x) => x.p!.y == null).map((x) => x.p!.m);
+  if (yearless.length) {
+    const ms = [...new Set(yearless)].sort((a, b) => a - b);
+    let gap = -1;
+    ms.forEach((m, k) => {
+      const next = k + 1 < ms.length ? ms[k + 1] : ms[0] + 12;
+      if (next - m > gap) { gap = next - m; start = ms[(k + 1) % ms.length]; }
+    });
+  }
+  const key = (p: { y: number | null; m: number }) =>
+    p.y != null ? p.y * 12 + p.m : ((p.m - start + 12) % 12);
+  ok.sort((a, b) => {
+    const ay = a.p!.y, by = b.p!.y;
+    if ((ay == null) !== (by == null)) return a.i - b.i; // mixed styles: leave as given
+    return key(a.p!) - key(b.p!) || a.i - b.i;
+  });
+  return [...ok, ...bad].map((x) => x.t);
+}
+
 /** "October 28, 2026" -> "Oct 28, 2026" (label as Tableau shows it, shortened). */
 export function shortDate(label?: string | null): string {
   if (!label) return "—";
@@ -60,7 +111,8 @@ export function MonthlyTable({ table, refresh, yoyNote, extraNote }: { table: an
   );
   const cols: Col[] = useMemo(() => [
     { key: "metric", label: "Metric", kind: "text", style: { whiteSpace: "normal", minWidth: 130 } },
-    ...months.map((m, i): Col => ({
+    // Columns in calendar order; values stay keyed by month, so a reordered payload still lines up.
+    ...chronoMonths(months.map((m, i) => ({ m, i })), (x) => x.m).map(({ m, i }): Col => ({
       key: m, label: m === partial ? `${labels[i]} · MTD` : labels[i], kind: "count",
       render: (row: any) => fmtVal(row._r.kind, row[m]),
     })),

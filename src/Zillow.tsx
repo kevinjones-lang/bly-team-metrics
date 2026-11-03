@@ -5,7 +5,7 @@ import { useAgent, sameAgent, AgentBanner, usePersist } from "./agent";
 import "./fubaudit.css";
 import "./zillow.css";
 import { SortableAgentTable, TotalsCheck, computeTotals, type Col } from "./zillowTable";
-import { MonthlyTable, boardFor, periodsAvailable, PERIOD_LABEL, shortDate, shortRange, type PeriodId } from "./zillowPeriods";
+import { MonthlyTable, chronoMonths, monthTick, boardFor, periodsAvailable, PERIOD_LABEL, shortDate, shortRange, type PeriodId } from "./zillowPeriods";
 
 type Rating = "High" | "Fair" | "Low" | null | undefined;
 type TabId = "performance" | "team" | "funnel" | "agents" | "details" | "glossary" | "top10";
@@ -143,7 +143,8 @@ function MetricCard({ m, tipKey, emptyNote }: { m: any; tipKey: string; emptyNot
 
 function MonthBars({ bars, title }: { bars?: Record<string, number> | null; title: string }) {
   if (!bars || !Object.keys(bars).length) return null;
-  const entries = Object.entries(bars);
+  // Calendar order: the payload object's key order is not reliable (jsonb returns keys alphabetized).
+  const entries = chronoMonths(Object.entries(bars), ([m]) => m);
   const mx = Math.max(1, ...entries.map(([, v]) => (ok(v) ? v : 0)));
   const W = 420, H = 110, P = 24, bw = (W - 2 * P) / entries.length;
   const Y = (v: number) => H - P - (v * (H - 2 * P)) / mx;
@@ -159,7 +160,7 @@ function MonthBars({ bars, title }: { bars?: Record<string, number> | null; titl
             <g key={m}>
               {ok(v) ? <rect x={x + bw * 0.15} y={Y(v)} width={bw * 0.7} height={h} fill={i === entries.length - 1 ? "#2E7D4F" : "#00519B"} /> : null}
               {ok(v) ? <text x={x + bw / 2} y={Y(v) - 3} textAnchor="middle" fontSize="10" fill="#12151C">{v}</text> : null}
-              <text x={x + bw / 2} y={H - 8} textAnchor="middle" fontSize="11" fill="#6B6B6B">{m.slice(0, 3)}</text>
+              <text x={x + bw / 2} y={H - 8} textAnchor="middle" fontSize="11" fill="#6B6B6B">{monthTick(m)}</text>
             </g>
           );
         })}
