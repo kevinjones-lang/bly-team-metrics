@@ -84,6 +84,7 @@ export function MonthlyTable({ table, refresh, yoyNote, extraNote }: { table: an
         By month · {table.coverage}{partial ? ` · ${labels[months.indexOf(partial)]} is a partial month (month to date)` : ""}
         {refresh ? ` · Tableau refresh ${refresh}` : ""}. Click any column to sort.
       </p>
+      {table.carried_note ? <p className="zl-cap zl-muted">{table.carried_note}</p> : null}
       {extraNote ? <p className="zl-cap">{extraNote}</p> : null}
       <SortableAgentTable cols={cols} rows={rows} rowKey="metric" pinned={[]} className="zl-monthly" />
       <p className="zl-cap zl-muted">

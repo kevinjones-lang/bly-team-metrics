@@ -284,6 +284,15 @@ function TeamDetailsTab({ data }: { data: any }) {
 
 const refreshOf = (data: any) => shortDate(data?.periods?.last_refresh_label || data?.last_refresh_label);
 const monthlyOf = (data: any, key: string) => data?.periods?.monthly?.[key] ?? null;
+const MLAB = (m: string) => `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+m.slice(5) - 1]} ${m.slice(0, 4)}`;
+/** ZHL funnel monthly table: Tableau shows only 6 months (Date control hidden in the ZHL view); window comes from the payload. */
+const zhlWindowNote = (mt: any) => {
+  const w: string[] | null = mt?.tableau_window || (mt?.months?.length ? [mt.months[0], mt.months[mt.months.length - 1]] : null);
+  const shown = w ? `${MLAB(w[0])} – ${MLAB(w[1])}` : "6 months";
+  const carried = Object.keys(mt?.carried_months || {}).length > 0;
+  return `Tableau's ZHL funnel table shows only ${shown} (its Date control is hidden in the ZHL view)` +
+    (carried ? "; earlier months marked † are carried from previous pulls, and the Total covers every month shown." : `, so the Total covers those ${mt?.months?.length || 6} months.`);
+};
 
 function TeamBuyer({ block, data }: { block: any; data: any }) {
   const rows = block.by_month || [];
@@ -503,7 +512,7 @@ function FunnelTab({ data }: { data: any }) {
             table={mt}
             refresh={refreshOf(data)}
             yoyNote={data.periods?.yoy_note}
-            extraNote={active === "zhl" ? "Tableau's ZHL funnel table shows only May–Oct 2026 (its Date control is hidden in the ZHL view), so the Total covers those 6 months." : `Funnel stages above use ${block.date_window || "Last 6 months"}; this table uses Tableau's ${mt.date_filter || "Last 6 years"} filter.`}
+            extraNote={active === "zhl" ? zhlWindowNote(mt) : `Funnel stages above use ${block.date_window || "Last 6 months"}; this table uses Tableau's ${mt.date_filter || "Last 6 years"} filter.`}
           />
         </div>
       ) : table ? (
