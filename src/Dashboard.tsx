@@ -261,19 +261,22 @@ export default function Dashboard() {
         <Table noTotals columns={["Activity", PL[per], "Source"]} align={["start", "end", "start"]} rows={[
           ["Outbound calls", n0(s.out[i]), "FUB calls, humans only (AI dialer excluded)"],
           ["Calls 60s or longer (in + out)", n0(s.conn[i]), "FUB calls"],
-          ["Appointments created", n0(s.appt[i]), "FUB appointments"],
+          ["Appts Set", n0(s.appt_set ? s.appt_set[i] : s.appt[i]), "FUB createdById; matches Activity Leaderboard and TV"],
+          ["Appts Held", n0(s.appt[i]), "FUB invitees (userId), or createdById if none"],
           ...(s.up7 != null ? [["Appointments in next 7 days", n0(s.up7), "FUB appointments"]] : []),
           ["Dials", n0(s.dials[i]), "Sisu activity (DIALS)"],
           ["Conversations", n0(s.contacts[i]), "Sisu activity (CONTA)"],
-          ["Texts", n0(s.texts[i]), "Sisu activity (TEXTM, synced from FUB)"],
+          ["Texts", n0(s.texts[i]), s.textsGrp ? `FUB texts sent, one per recipient (${n0(s.textsGrp[i])} in group texts); failed excluded` : "FUB texts sent"],
+          ...(s.emails ? [["Emails", n0(s.emails[i]), `FUB emails sent: ${n0(s.emails1[i])} 1:1 · ${n0(s.emailsMass[i])} mass; action plans excluded (${n0(s.emailsAp[i])})`]] : []),
           ["Appointments set / met (partial data)", `${n0(s.sApptSet[i])} / ${n0(s.sApptMet[i])}`, "Sisu transactions; many have no dates"],
           ["First showings", n0(s.sShow[i]), "Sisu transactions"],
         ]} />
+        <Text>Appts Set credits the FUB user who created the appointment (createdById); that matches the FUB Activity Leaderboard and the TV. Appts Held credits invited FUB users (invitees), or the creator when no user is invited. Team totals are equal unless a creator is not an agent.</Text>
         <Text>Sisu activity history via the API starts in July 2026, so YTD equals roughly the last 90 days. No showing activity type is logged in Sisu this year.</Text>
       </Section>
       <Section heading="Conversion funnel" caption="Sisu transaction milestone dates in the period (each step counted independently, not a cohort).">
         <Bars bars={[["Leads (FUB)", s.leads[i]], ["Appointments set (partial data)", s.sApptSet[i]], ["Appointments met (partial data)", s.sApptMet[i]], ["Signed (partial data)", s.sSigned[i]], ["Under contract", s.sUC[i]], [view === "agent" ? "Closed sales (working agent)" : "Closed", view === "agent" ? waU(s)[i] : s.sUnits[i]]].map(([l, v]: any) => ({ label: l, value: v, display: n0(v) }))} emphasis="none" />
-        <Text>{`Lead to FUB appointment rate: ${pct(s.appt[i], s.leads[i])}. Appointment met to signed: ${pct(s.sSigned[i], s.sApptMet[i])}. Sisu appointment and signed dates are partial data (often left blank), so those steps undercount; under contract uses Sisu uc_dt.`}</Text>
+        <Text>{`Lead to FUB appointment rate (Held): ${pct(s.appt[i], s.leads[i])}. Appointment met to signed: ${pct(s.sSigned[i], s.sApptMet[i])}. Sisu appointment and signed dates are partial data (often left blank), so those steps undercount; under contract uses Sisu uc_dt.`}</Text>
       </Section>
       {view !== "agent" ? (
         <Section heading="Pipeline" caption="Active FUB deals by pipeline and stage, and open Sisu transactions by status (current, not period-based).">
@@ -316,7 +319,7 @@ export default function Dashboard() {
           { label: "SkySlope", value: "Not connected; eXp report SkySlope Stage used as a stand-in" },
         ]} />
         <Rows rows={[
-          { title: "FUB texts", detail: "FUB will not list texts team-wide; texts come from Sisu's FUB sync, and speed to lead uses calls only." },
+          { title: "FUB texts and emails", detail: D.fubMsg ? `Official source: Follow Up Boss (matches the FUB Leaderboard columns). FUB will not list texts or emails team-wide, so the pipeline sweeps every person with recent activity. Texts: outgoing, not failed, credited to the sender, one per recipient. Emails: status Sent, credited to the sender by send date; action-plan emails excluded; mass = FUB Bulk or one sender sending the same template/subject to 10+ people within minutes. Coverage from ${D.fubMsg.coverage_start?.texts ?? "n/a"} (texts) / ${D.fubMsg.coverage_start?.emails ?? "n/a"} (emails); periods starting earlier show n/a. AI dialer excluded. Speed to lead still uses calls only.` : "Texts and emails come from Follow Up Boss." },
           { title: "Odd scheduled dates", detail: D.odd.map((o: any) => `${o.address.replace(", US", "")} scheduled ${o.sched}`).join("; ") },
           { title: "Unmatched eXp names", detail: D.unExp.join(", ") + ". They are not FUB users, so each shows as its own named row (marked \"not in FUB\") in agent views and counts in team totals, not group views. Sisu agents missing from Sisu's agent list are named from the eXp file at the same address; any left over sit on \"Unassigned / former agent\"." },
           { title: "Unmatched Sisu agents", detail: D.unSisu.join(", ") || "none" },
@@ -331,7 +334,7 @@ export default function Dashboard() {
             ["Leads worked (called)", n0(IS.worked[i])],
             ["Outbound calls", n0(IS.out[i])],
             ["Conversations (calls 2 min+)", `${n0(IS.conv_calls[i])} calls · ${n0(IS.conv_people[i])} people`],
-            ["Texts (Sisu)", n0(IS.texts[i])],
+            ["Texts (FUB)", n0(IS.texts[i])],
             ["Appointments set", `${n0(IS.appts[i])} · ${n0(IS.appt_people[i])} people`],
             ["Appointments held / no-show", `${n0(IS.held[i])} / ${n0(IS.noshow[i])}`],
             ["Converted (tag)", lease === "in" ? `${n0(IS.converted[i])} (${n0(IS.conv_lease[i])} lease)` : n0(IS.converted[i])],
@@ -398,7 +401,8 @@ export default function Dashboard() {
         </Section>
       </Section>
       <Section heading="Agent scorecard" caption={`${PL[per]}; closed units and volume = working agent (sales only); GCI and company dollar ${LRL}; FUB leads and calls.`}>
-        <Table ratios={{ "Co$/unit": ["Company dollar", "Closed (working agent)"] }} columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Closed (working agent)", "Volume (working agent)", "Co$/unit", "Leads", "Calls", "Appts", "Texts", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = waU(r.s)[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(waV(r.s)[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.pend)]; }), srt.score)} />
+        <Table ratios={{ "Co$/unit": ["Company dollar", "Closed (working agent)"] }} columns={["Agent", "Total GCI", "Company dollar", "Agent GCI", "Closed (working agent)", "Volume (working agent)", "Co$/unit", "Leads", "Calls", { label: "Appts Set", head: <span title="Credits the FUB user who created the appointment (createdById). Matches the FUB Activity Leaderboard and the TV.">Appts Set</span> }, { label: "Appts Held", head: <span title="Credits invited FUB users (invitees), or the creator when no user is invited.">Appts Held</span> }, "Texts", "Emails", "Pending"]} rows={sortRowsBy(score.map((r: any) => { const nm = D.names[r.k] || r.k; const co = ((lrOn === "on" ? r.s.coDollar : r.s.coDollarX) ?? r.s.coDollar ?? [])[i]; const g = r.s.sGci[i]; const u = waU(r.s)[i]; const ag = agentGci(g, co, nm); return [nm, usd(g), usd(co), usd(ag), n0(u), usd(waV(r.s)[i]), u ? usd((co || 0) / u) : "—", n0(r.s.leads[i]), n0(r.s.out[i]), n0(r.s.appt_set ? r.s.appt_set[i] : r.s.appt[i]), n0(r.s.appt[i]), n0(r.s.texts[i]), n0(r.s.emails?.[i]), n0(r.s.pend)]; }), srt.score)} />
+        <Text>Appts Set credits the FUB user who created the appointment (createdById); that matches the FUB Activity Leaderboard and the TV. Appts Held credits invited FUB users (invitees), or the creator when no user is invited. Hover the column headers for the short definition. The totals row sums these agents, so Set or Held here can differ from the official team unique-appointment total.</Text>
         <Text>{`${WA_NOTE} The totals row sums these agents, so it will not equal the official team total: ${n0(SG(D.segs.team).sUnits[i])} closed units (${PL[per].toLowerCase()}, eXp transaction IDs, both sides = 2, ${LRL}; ${n0(D.segs.team.sUnitsX?.[i] ?? 0)} excl. leases & referrals). eXp files often sit under Deb's ID while another agent did the work, and Sisu and eXp disagree on some close dates.`}</Text>
         <Text>{`Total GCI = Sisu gross commission. Company dollar = all eXp Team Revenue on Closed deals (every agent’s team cut + 100% Deb + 100% Kevin commission lines). Agent GCI = Total GCI − Company dollar for other agents; $0 for Deb and Kevin (their commission is in company dollar). GCI and company dollar come from different systems, so Agent GCI is a working split for the room, not a paycheck figure. eXp has no agent-payout column; Sisu broker-review / royalty / transaction-fee fields are empty on 2026 closings.`}</Text>
       </Section>
@@ -410,7 +414,7 @@ export default function Dashboard() {
               { label: "Agent GCI", value: usd(agentGci(a.sGci[i], a.coDollar?.[i], D.names[agent])) }, { label: "Company dollar per unit", value: waU(a)[i] ? usd((a.coDollar?.[i] || 0) / waU(a)[i]) : "—" },
               { label: "Closed sales (working agent)", value: n0(waU(a)[i]) }, { label: "Closed sales volume (working agent)", value: usd(waV(a)[i]) },
               { label: "Pending (now)", value: n0(a.pend) }, { label: "New leads", value: n0(a.leads[i]) }, { label: "Outbound calls", value: n0(a.out[i]) },
-              { label: "Appointments", value: n0(a.appt[i]) }, { label: "Texts", value: n0(a.texts[i]) }]} />
+              { label: "Appts Set", value: n0(a.appt_set ? a.appt_set[i] : a.appt[i]) }, { label: "Appts Held", value: n0(a.appt[i]) }, { label: "Texts (FUB)", value: n0(a.texts[i]) }, ...(a.emails ? [{ label: "Emails (FUB, 1:1 / mass)", value: `${n0(a.emails[i])} (${n0(a.emails1[i])} / ${n0(a.emailsMass[i])})` }] : [])]} />
             <Bars bars={[["Leads (FUB)", a.leads[i]], ["Appointments set (partial data)", a.sApptSet[i]], ["Appointments met (partial data)", a.sApptMet[i]], ["Signed (partial data)", a.sSigned[i]], ["Under contract", a.sUC[i]], ["Closed sales (working agent)", waU(a)[i]]].map(([l, v]: any) => ({ label: l, value: v || 0, display: n0(v) }))} emphasis="none" />
           </Grid>) : <Text>No Sisu or FUB activity recorded for this agent.</Text>; })()}
       </Section>
