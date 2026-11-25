@@ -17,6 +17,7 @@ export const HUB_TILES: Tile[] = [
   { id: "referrals", label: "Referral Hub", hint: "Out-of-area client handoffs", group: "Apps", route: "referrals" },
   { id: "listings", label: "Listings & Closings", hint: "HAR listings, leases, and closings", group: "Apps", route: "listings" },
   { id: "team", label: "Team Metrics", hint: "Production, leads, P&L", group: "Metrics", route: "team" },
+  { id: "budget", label: "Budget vs Actual", hint: "2027 budget vs P&L actuals", group: "Metrics", route: "budget" },
   { id: "myt", label: "Multi-Year Trends", hint: "Year × month tables", group: "Metrics", route: "myt" },
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", group: "Metrics", route: "fub-audit" },
   { id: "fello", label: "Fello", hint: "Felix AI to closing", group: "Metrics", route: "fello" },

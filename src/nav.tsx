@@ -6,12 +6,14 @@ import Fello from "./Fello";
 import Zillow from "./Zillow";
 import Ylopo from "./Ylopo";
 import Myt from "./Myt";
+import Budget from "./Budget";
 import Hub from "./Hub";
 import Listings from "./listings/Listings";
 import Referrals from "./referrals/Referrals";
 import { useAgent, TeamOnly } from "./agent";
 
 function RecruitingGate({ data }: { data: any }) { const { agent } = useAgent(); return agent ? <div className="page-body"><h1 className="page-title serif">Recruiting Dynamics</h1><TeamOnly what="Recruiting Dynamics" /></div> : <Recruiting data={data} />; }
+function BudgetGate({ data }: { data: any }) { const { agent } = useAgent(); return agent ? <div className="page-body"><h1 className="page-title serif">2027 Budget vs Actual</h1><TeamOnly what="2027 Budget vs Actual" /></div> : <Budget data={data} />; }
 
 function SnapshotMissing({ title }: { title: string }) {
   return (
@@ -33,6 +35,7 @@ export const NAV: NavItem[] = [
   { id: "referrals", label: "Referral Hub", hint: "Out-of-area handoffs", render: () => <Referrals /> },
   { id: "listings", label: "Listings & Closings", hint: "HAR listings and closings", render: () => <Listings /> },
   { id: "team", label: "Team Metrics", hint: "Production, leads, P&L", render: (p) => p ? <Dashboard /> : <SnapshotMissing title="The Bly Team Metrics" /> },
+  { id: "budget", label: "Budget vs Actual", hint: "2027 budget & P&L", render: (p) => <BudgetGate data={p?.budget} /> },
   { id: "myt", label: "Multi-Year Trends", hint: "Year × month tables", render: (p) => <Myt data={p?.myt} /> },
   { id: "fub-audit", label: "FUB Audit", hint: "Follow Up Boss health", render: (p) => <FubAudit data={p?.fub_audit} /> },
   { id: "fello", label: "Fello", hint: "Felix AI to closing", render: (p) => <Fello data={p?.fello} /> },
